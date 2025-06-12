@@ -77,6 +77,10 @@ enum class HumanState { WALKING_ON_SIDEWALK, WAITING_AT_CROSSING_EDGE, CROSSING_
 TrafficLightState mainTrafficLightState = TrafficLightState::GREEN;
 PedestrianLightState pedestrianLightState = PedestrianLightState::DONT_WALK;
 
+// Add these constants near the top with other constants
+const float CAR_PRIORITY_THRESHOLD = 300.0f;  // Distance to check for cars
+const int MIN_CARS_FOR_PRIORITY = 3;         // Minimum cars to give them priority
+const int MIN_HUMANS_FOR_PRIORITY = 2;       // Minimum humans to give them priority
 
 // ===================================================================
 //  Helper Structs & Classes from Man.cpp and oldCode.cpp
@@ -1314,7 +1318,18 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
         glEnd();
         // Label for extended waiting area
         glColor3f(1.0f, 0.5f, 1.0f);
-        drawText(crossing_area_x_start - 20.0f, road_y_top + 25, "Extended Waiting Area (+/- 20 units)", 0.5f);
+        drawText(crossing_area_x_start - 20.0f, road_y_top + 25, "Extended Waiting Area", 0.5f);
+        // Car priority area
+        glColor3f(0.0f, 1.0f, 0.5f);  // Light green for car priority area
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_bottom);
+        glVertex2f(crossing_area_x_start, road_y_bottom);
+        glVertex2f(crossing_area_x_start, road_y_top);
+        glVertex2f(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top);
+        glEnd();
+        // Label for car priority area
+        glColor3f(0.0f, 1.0f, 0.5f);
+        drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 40, "Car Priority Area", 0.5f);
     }
 }
 
@@ -1673,14 +1688,31 @@ void showTransitionDelay(std::function<void()> callback, int delay) {
     glutTimerFunc(delay, timerCallback, 0);
 }
 
+// Add this function before updateTrafficLights
+int countCarsNearCrossing() {
+    int count = 0;
+    for (const auto& car : cars) {
+        // Check if car is within threshold distance of crossing
+        if (std::abs(car->x - HUMAN_CROSSING_X_START) < CAR_PRIORITY_THRESHOLD) {
+            count++;
+        }
+    }
+    return count;
+}
+
 void updateTrafficLights() {
- 
     bool isWaiting = HumansWaitingToCross() > 0;
     bool isCrossing = HumansCrossing() > 0;
+    int carsNearCrossing = countCarsNearCrossing();
     
     // If humans are waiting and we're not already in the process of changing
     if (isWaiting && !yellowLightOn) {
-        if (mainTrafficLightState == TrafficLightState::GREEN) {
+        // Only change to red if:
+        // 1. There are enough humans waiting (more than MIN_HUMANS_FOR_PRIORITY)
+        // 2. OR there aren't enough cars to give them priority
+        if (mainTrafficLightState == TrafficLightState::GREEN && 
+            (HumansWaitingToCross() >= MIN_HUMANS_FOR_PRIORITY || 
+             carsNearCrossing < MIN_CARS_FOR_PRIORITY)) {
             yellowLightOn = true;
             showTransitionDelay(showRedLight, 1000);
         }
@@ -1688,7 +1720,12 @@ void updateTrafficLights() {
     
     // If no humans are crossing and we were previously crossing
     if (!isCrossing && !yellowLightOn) {
-        if (mainTrafficLightState == TrafficLightState::RED) {
+        // Only change to green if:
+        // 1. There are enough cars to give them priority
+        // 2. OR there aren't enough humans waiting
+        if (mainTrafficLightState == TrafficLightState::RED && 
+            (carsNearCrossing >= MIN_CARS_FOR_PRIORITY || 
+             HumansWaitingToCross() < MIN_HUMANS_FOR_PRIORITY)) {
             yellowLightOn = true;
             showTransitionDelay(showGreenLight, 1000);
         }
