@@ -271,7 +271,7 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
     } else {
         glColor3f(0.6f, 0.0f, 0.0f);
     }
-    drawRect(x, y + height * 0.5f, 4, 5);
+    drawRect(x - 4, y + height * 0.4f, 4, 5);
 
     // Headlights (front)
     if (isNight) {
