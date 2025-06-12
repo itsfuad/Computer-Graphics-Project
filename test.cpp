@@ -72,6 +72,7 @@ int lastHumanSpawnTime = 0;
 // Enums for Traffic and Pedestrian Lights
 enum class TrafficLightState { RED, GREEN };
 enum class PedestrianLightState { DONT_WALK, WALK };
+enum class VehicleType { CAR, TRUCK, BUS };
 enum class HumanState { WALKING_ON_SIDEWALK, WAITING_AT_CROSSING_EDGE, CROSSING_ROAD, REACHED_OTHER_SIDEWALK, WALKING_AWAY_ON_SIDEWALK, DESPAWNED };
 
 TrafficLightState mainTrafficLightState = TrafficLightState::GREEN;
@@ -104,7 +105,7 @@ struct Rect {
 };
 
 // Forward declarations
-class Car;
+class Vehicle;
 class AdvancedHuman;
 
 void drawRect(float x, float y, float width, float height, float translateX = 0.0f, float translateY = 0.0f) {
@@ -142,8 +143,241 @@ void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3) {
 }
 
 
+// ===================================================================
+//  NEW VEHICLE DRAWING FUNCTIONS
+// ===================================================================
+
+void drawModernCar(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed) {
+    // Body
+    glColor3f(r, g, b);
+    drawRect(x, y, width, height * 0.6f);
+
+    // Roof and Windows
+    glColor3f(0.6f, 0.8f, 0.9f); // Light blue for windows
+    glBegin(GL_QUADS);
+    glVertex2f(x + width * 0.15f, y + height * 0.6f);
+    glVertex2f(x + width * 0.85f, y + height * 0.6f);
+    glVertex2f(x + width * 0.7f, y + height);
+    glVertex2f(x + width * 0.25f, y + height);
+    glEnd();
+
+    // Window outlines
+    glColor3f(0.1f, 0.1f, 0.1f);
+    glLineWidth(2.0f);
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(x + width * 0.15f, y + height * 0.6f);
+    glVertex2f(x + width * 0.85f, y + height * 0.6f);
+    glVertex2f(x + width * 0.7f, y + height);
+    glVertex2f(x + width * 0.25f, y + height);
+    glEnd();
+    drawLine(x + width * 0.5f, y + height * 0.6f, x + width * 0.5f, y + height);
+
+    // Wheels
+    glColor3f(0.1f, 0.1f, 0.1f); // Tire
+    drawCircle(x + width * 0.25f, y, height * 0.25f);
+    drawCircle(x + width * 0.75f, y, height * 0.25f);
+    glColor3f(0.7f, 0.7f, 0.7f); // Rim
+    drawCircle(x + width * 0.25f, y, height * 0.15f);
+    drawCircle(x + width * 0.75f, y, height * 0.15f);
+
+    // Brake Lights (rear)
+    if (current_speed < 0.1f) {
+        glColor3f(1.0f, 0.0f, 0.0f);
+    } else {
+        glColor3f(0.6f, 0.0f, 0.0f);
+    }
+    drawRect(x, y + height * 0.3f, 4, 6);
+
+    // Headlights (front)
+    if (isNight) {
+        glColor4f(1.0f, 1.0f, 0.7f, 0.3f); // Glow
+        drawCircle(x + width, y + height * 0.4f, 20.0f);
+        glColor3f(1.0f, 1.0f, 0.8f); // Light source
+    } else {
+        glColor3f(0.9f, 0.9f, 0.9f); // Turned off light
+    }
+    drawRect(x + width - 4, y + height * 0.3f, 4, 6);
+}
+
+
+void drawTruck(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed) {
+    
+    // --- Chassis and Cargo connection
+    glColor3f(0.0f, 0.0f, 0.0f);
+    drawLine(x + width * 0.65f, y + height * 0.2f, x + width * 0.65f, y + height * 0.8f, 6.0f);
+    
+    // --- Chassis ---
+    glColor3f(0.2f, 0.2f, 0.2f);
+    drawRect(x, y, width, 5); // A thin, dark chassis base
+
+    // --- Cargo Bed (Container Style) ---
+    glColor3f(r * 0.8f, g * 0.8f, b * 0.8f); // Slightly darker shade for the container
+    float containerWidth = width * 0.68f;
+    float containerHeight = height * 0.9f;
+    drawRect(x - 3, y + 5, containerWidth, containerHeight);
+    // Add some vertical lines for detail on the container
+    glColor3f(r * 0.7f, g * 0.7f, b * 0.7f);
+    glLineWidth(2.0f);
+    for(int i=1; i<4; ++i){
+        drawLine(x + containerWidth * (i/4.0f), y + 5, x + containerWidth * (i/4.0f), y + 5 + containerHeight);
+    }
+
+
+    // --- Cab ---
+    float cabWidth = width - containerWidth;
+    float cabX = x + containerWidth;
+    glColor3f(r, g, b); // Main cab color
+    glBegin(GL_QUADS);
+    glVertex2f(cabX, y + 5);
+    glVertex2f(cabX + cabWidth, y + 5);
+    glVertex2f(cabX + cabWidth, y + height * 0.8f);
+    glVertex2f(cabX, y + height * 0.9f); // Gives the cab a slight backward tilt
+    glEnd();
+
+
+    // --- Cab Window ---
+    glColor3f(0.6f, 0.8f, 0.9f); // Light blue window color
+    glBegin(GL_POLYGON);
+    glVertex2f(cabX + cabWidth * 0.5f, y + height * 0.42f);
+    glVertex2f(cabX + cabWidth * 1.0f, y + height * 0.42f);
+    glVertex2f(cabX + cabWidth * 1.0f, y + height * 0.75f);
+    glVertex2f(cabX + cabWidth * 0.5f, y + height * 0.8f);
+    glEnd();
+
+
+    // --- Details: Fuel tank and exhaust ---
+    glColor3f(0.5f, 0.5f, 0.5f); // Grey for fuel tank
+    drawRect(x + containerWidth - 25, y + 5, 20, 10);
+    glColor3f(0.3f, 0.3f, 0.3f); // Dark for exhaust
+    drawRect(cabX + cabWidth * 0.1f, y + height - 4, 3, 10); // Vertical exhaust pipe
+
+
+    // --- Wheels (3 sets) ---
+    float wheelRadius = height * 0.2f;
+    glColor3f(0.1f, 0.1f, 0.1f); // Tire
+    drawCircle(x + width * 0.15f, y + wheelRadius, wheelRadius);
+    drawCircle(x + width * 0.35f, y + wheelRadius, wheelRadius);
+    drawCircle(x + width * 0.85f, y + wheelRadius, wheelRadius);
+    glColor3f(0.7f, 0.7f, 0.7f); // Rim
+    drawCircle(x + width * 0.15f, y + wheelRadius, wheelRadius * 0.6f);
+    drawCircle(x + width * 0.35f, y + wheelRadius, wheelRadius * 0.6f);
+    drawCircle(x + width * 0.85f, y + wheelRadius, wheelRadius * 0.6f);
+
+
+    // --- Lights ---
+    // Brake Lights (rear)
+    if (current_speed < 0.1f) {
+        glColor3f(1.0f, 0.0f, 0.0f);
+    } else {
+        glColor3f(0.6f, 0.0f, 0.0f);
+    }
+    drawRect(x, y + height * 0.5f, 4, 5);
+
+    // Headlights (front)
+    if (isNight) {
+        glColor4f(1.0f, 1.0f, 0.7f, 0.3f); // Glow
+        drawCircle(x + width, y + height * 0.2f, 25.0f);
+        glColor3f(1.0f, 1.0f, 0.8f); // Light source
+    } else {
+        glColor3f(0.9f, 0.9f, 0.9f); // Turned off light
+    }
+    
+    drawRect(x + width - 5, y + height * 0.2f, 5, 5);
+}
+
+
+void drawBus(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed) {
+    // Main Body
+    glColor3f(r, g, b);
+    drawRect(x, y, width, height);
+
+    // Windows
+    glColor3f(0.2f, 0.2f, 0.3f); // Dark windows
+    float windowHeight = height * 0.4f;
+    float windowY = y + height * 0.4f;
+    float windowWidth = width * 0.12f;
+    float windowSpacing = width * 0.05f;
+    for (int i = 0; i < 5; ++i) {
+        float windowX = x + width * 0.1f + i * (windowWidth + windowSpacing);
+        drawRect(windowX, windowY, windowWidth, windowHeight);
+    }
+
+    // Wheels
+    glColor3f(0.1f, 0.1f, 0.1f);
+    drawCircle(x + width * 0.2f, y, height * 0.25f);
+    drawCircle(x + width * 0.8f, y, height * 0.25f);
+    glColor3f(0.7f, 0.7f, 0.7f);
+    drawCircle(x + width * 0.2f, y, height * 0.15f);
+    drawCircle(x + width * 0.8f, y, height * 0.15f);
+
+    // Brake Lights
+    if (current_speed < 0.1f) glColor3f(1.0f, 0.0f, 0.0f);
+    else glColor3f(0.6f, 0.0f, 0.0f);
+    drawRect(x, y + height * 0.2f, 4, 8);
+
+    // Headlights
+    if (isNight) {
+        glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
+        drawCircle(x + width, y + height * 0.25f, 30.0f);
+        glColor3f(1.0f, 1.0f, 0.8f);
+    } else {
+        glColor3f(0.9f, 0.9f, 0.9f);
+    }
+    drawRect(x + width - 5, y + height * 0.25f, 4, 4);
+}
+
+
+// ===================================================================
+//  Vehicle Class (replaces Car)
+// ===================================================================
+class Vehicle {
+public:
+    float x, y, width, height, r, g, b, current_speed, speedFactor;
+    VehicleType type;
+    bool isHonking;
+    int honkTimer;
+
+    Vehicle(float _x, float _y, float _w, float _h, float _r, float _g, float _b, VehicleType _type)
+        : x(_x), y(_y), width(_w), height(_h), r(_r), g(_g), b(_b), type(_type),
+          isHonking(false), honkTimer(0), current_speed(0) {
+        speedFactor = 1.0f + (rand() % 41) / 100.0f;
+        current_speed = USER_CAR_SPEED_BASE * speedFactor;
+    }
+
+    void draw() {
+        // Call the appropriate drawing function based on type
+        switch (type) {
+            case VehicleType::CAR:
+                drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
+                break;
+            case VehicleType::TRUCK:
+                drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
+                break;
+            case VehicleType::BUS:
+                drawBus(x, y, width, height, r, g, b, isNight, current_speed);
+                break;
+        }
+
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);  // Green for bounding box
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+
+    void honk() { if (!isHonking) { isHonking = true; honkTimer = 45; } }
+    void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
+};
+
+
 // Global collections of scene objects
-std::vector<Car*> cars;
+std::vector<Vehicle*> vehicles; // Changed from Car
 std::vector<AdvancedHuman*> activeHumans; // Using pointers for the new complex human class
 
 // ===================================================================
@@ -505,93 +739,6 @@ void drawText(float x, float y, const char* text, float scale = 0.7f) {
     glPopMatrix();
 }
 
-class Car {
-
-public:
-    float x, y, width, height, r, g, b, current_speed, speedFactor;
-    bool isHonking;
-    int honkTimer;
-
-    Car(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : x(_x), y(_y), width(_w), height(_h), r(_r), g(_g), b(_b),
-          isHonking(false), honkTimer(0), current_speed(0) {
-        speedFactor = 1.0f + (rand() % 41) / 100.0f;  // Random speed between 1.0 and 1.4
-        current_speed = USER_CAR_SPEED_BASE * speedFactor;
-    }
-
-    void draw() const {
-        float original_r = r, original_g = g, original_b = b;
-        if (isHonking && honkTimer > 0) glColor3f(1.0f, 1.0f, 0.2f);
-        else glColor3f(r, g, b);
-        
-        glBegin(GL_QUADS); /*Body*/
-        glVertex2f(x, y); glVertex2f(x + width, y); glVertex2f(x + width, y + height); glVertex2f(x, y + height);
-        glEnd();
-        glBegin(GL_QUADS); /*Roof*/
-        glVertex2f(x + width * 0.15f, y + height); glVertex2f(x + width * 0.85f, y + height);
-        glVertex2f(x + width * 0.75f, y + height + height * 0.4f); glVertex2f(x + width * 0.25f, y + height + height * 0.4f);
-        glEnd();
-        
-        glColor3f(0.1f, 0.1f, 0.1f); /*Wheels*/
-        drawCircle(x + width * 0.25f, y, height * 0.35f);
-        drawCircle(x + width * 0.75f, y, height * 0.35f);
-
-        if (current_speed < 0.1f) { /*Brake Lights*/
-            glColor4f(1.0f, 0.0f, 0.0f, 0.3f); drawCircle(x, y + height * 0.35f, 15.0f);
-            glColor3f(1.0f, 0.0f, 0.0f);
-            glBegin(GL_QUADS);
-            glVertex2f(x + 3, y + height * 0.3f); glVertex2f(x, y + height * 0.3f); glVertex2f(x, y + height * 0.5f); glVertex2f(x + 3, y + height * 0.5f);
-            glEnd();
-        }
-
-        if (isNight) { /*Headlights*/
-            glColor4f(1.0f, 1.0f, 0.7f, 0.3f); drawCircle(x + width, y + height * 0.35f, 25.0f);
-            glColor4f(1.0f, 1.0f, 0.7f, 0.2f);
-            glBegin(GL_TRIANGLES);
-            glVertex2f(x + width, y + height * 0.35f); glVertex2f(x + width + 50.0f, y + height * 0.35f - 15.0f); glVertex2f(x + width + 50.0f, y + height * 0.35f + 15.0f);
-            glEnd();
-            glColor3f(1.0f, 1.0f, 0.7f);
-            glBegin(GL_QUADS);
-            glVertex2f(x + width - 3, y + height * 0.3f); glVertex2f(x + width, y + height * 0.3f); glVertex2f(x + width, y + height * 0.5f); glVertex2f(x + width - 3, y + height * 0.5f);
-            glEnd();
-        }
-        
-        if (DEBUG_ON && !scenePaused) {
-            // Main bounding box (green)
-            Rect b = {x, y, width, height};
-            glColor3f(0.0f, 1.0f, 0.0f);  // Green for car bounding box
-            glLineWidth(1.0f);  // Thinner line
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y); 
-            glVertex2f(b.x + b.w, b.y); 
-            glVertex2f(b.x + b.w, b.y + b.h); 
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-
-            // Front collision box (yellow)
-            Rect frontB;
-            if (current_speed >= 0) {  // Moving right
-                frontB = {x + width, y, MIN_CAR_SPACING_AHEAD, height};
-            } else {  // Moving left
-                frontB = {x - MIN_CAR_SPACING_AHEAD, y, MIN_CAR_SPACING_AHEAD, height};
-            }
-            glColor3f(1.0f, 1.0f, 0.0f);  // Yellow for front collision box
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(frontB.x, frontB.y);
-            glVertex2f(frontB.x + frontB.w, frontB.y);
-            glVertex2f(frontB.x + frontB.w, frontB.y + frontB.h);
-            glVertex2f(frontB.x, frontB.y + frontB.h);
-            glEnd();
-            
-            glLineWidth(1.0f);  // Reset line width
-        }
-    }
-
-    void honk() { if (!isHonking) { isHonking = true; honkTimer = 45; } }
-    void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
-};
-
 struct Cloud {
     float x, y;
     float speed;
@@ -600,7 +747,6 @@ struct Cloud {
         speed = 0.2f + (rand() % 30) / 100.0f; // Random speed between 0.2 and 0.5
     }
 };
-
 unsigned short HumansWaitingToCross() {
     unsigned short count = 0;
     for (auto* human : activeHumans) {
@@ -1126,41 +1272,150 @@ void drawTrafficSignal(float x, float y, TrafficLightState state) {
     drawHumanSign(x, y, pedestrianLightState);
 }
 
+void spawnNewVehicle() {
+    float spawnW, spawnH;
+    VehicleType type;
 
-void spawnNewCar() {
-    float carW = 60.0f, carH = 28.0f;
-    float spawnX = -carW - 100.0f;
+    // Randomly choose a vehicle type
+    // int typeRoll = rand() % 20; // 0-5: Car, 6-7: Truck, 8-9: Bus
+    // if (typeRoll < 10) {
+    //     type = VehicleType::CAR;
+    //     spawnW = 60.0f;
+    //     spawnH = 28.0f;
+    // } else if (typeRoll < 13) {
+    //     type = VehicleType::TRUCK;
+    //     spawnW = 90.0f;
+    //     spawnH = 35.0f;
+    // } else {
+    //     type = VehicleType::BUS;
+    //     spawnW = 120.0f;
+    //     spawnH = 40.0f;
+    // }
+
+    type = VehicleType::TRUCK;
+    spawnW = 90.0f;
+    spawnH = 35.0f;
+
+    float spawnX = -spawnW - 150.0f; // Start further back
     float spawnY;
-    
-    // Randomly choose top or bottom lane
+
     if (rand() % 2 == 0) {
-        spawnY = ROAD_Y_BOTTOM + 8.0f;  // Bottom lane
+        spawnY = ROAD_Y_BOTTOM + 8.0f; // Bottom lane
     } else {
-        spawnY = ROAD_Y_TOP - 8.0f - carH;  // Top lane
+        spawnY = ROAD_Y_TOP - 8.0f - spawnH; // Top lane
     }
 
-    // Check for cars in the same lane to ensure proper spacing
-    for (const auto &car : cars) {
-        if (fabs(car->y - spawnY) < CAR_SAME_LANE_Y_THRESHOLD) {
-            if (car->x < spawnX + MIN_CAR_SPAWN_DISTANCE) {
-                spawnX = car->x - MIN_CAR_SPAWN_DISTANCE;
+    // Sort vehicles by lanes to prevent overlap
+    std::sort(vehicles.begin(), vehicles.end(), 
+        [](const Vehicle* a, const Vehicle* b) {
+            return a->y < b->y;  // Sort by y-coordinate (lane position)
+        });
+
+    // Check for vehicle in the same lane to ensure proper spacing
+    for (const auto &v : vehicles) {
+        if (fabs(v->y - spawnY) < CAR_SAME_LANE_Y_THRESHOLD) {
+            if (v->x < spawnX + MIN_CAR_SPAWN_DISTANCE) {
+                // This check is a bit tricky, but we avoid spawning right on top
+                return; // Just skip spawning this frame if it's too crowded
             }
         }
     }
 
-    // Create new car with random properties
-    Car* newCar = new Car(spawnX, spawnY, carW, carH, 
-        (rand() % 10) / 10.0f,  // r
-        (rand() % 10) / 10.0f,  // g
-        (rand() % 10) / 10.0f); // b
+    Vehicle* newVehicle = new Vehicle(spawnX, spawnY, spawnW, spawnH,
+        (rand() % 10) / 10.0f,
+        (rand() % 10) / 10.0f,
+        (rand() % 10) / 10.0f,
+        type);
 
-    // Ensure car isn't too dark
-    if (newCar->r < 0.1f && newCar->g < 0.1f && newCar->b < 0.1f) {
-        newCar->r = 0.5f;
+    if (newVehicle->r < 0.1f && newVehicle->g < 0.1f && newVehicle->b < 0.1f) {
+        newVehicle->r = 0.5f; // Avoid pure black
+    }
+    vehicles.push_back(newVehicle);
+}
+
+
+void updateVehicles() {
+    for (size_t i = 0; i < vehicles.size(); ++i) {
+        Vehicle* v1 = vehicles[i];
+        float targetSpeed = USER_CAR_SPEED_BASE * v1->speedFactor;
+        
+        // Buses and trucks are a bit slower
+        if (v1->type == VehicleType::BUS) targetSpeed *= 0.8f;
+        if (v1->type == VehicleType::TRUCK) targetSpeed *= 0.9f;
+
+        v1->current_speed = targetSpeed;
+
+        bool stoppedByLight = false;
+        if (mainTrafficLightState == TrafficLightState::RED || yellowLightOn) {
+            if (v1->x + v1->width < CAR_STOP_LINE_X + 5.0f &&
+                v1->x + v1->width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + v1->width * 0.5f)) {
+                v1->current_speed = 0;
+                stoppedByLight = true;
+            }
+        }
+
+        bool blockedByVehicleAhead = false;
+        if (!stoppedByLight) {
+            for (size_t j = 0; j < vehicles.size(); ++j) {
+                if (i == j) continue;
+                Vehicle* v2 = vehicles[j];
+                if (fabs(v1->y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD) {
+                    if (v2->x > v1->x) {
+                        float distance = v2->x - (v1->x + v1->width);
+                        if (distance < MIN_CAR_SPACING_AHEAD) {
+                            if (v2->current_speed < v1->current_speed) {
+                                v1->current_speed = v2->current_speed;
+                            }
+                            if (distance < 2.0f || (v2->current_speed < 0.1f && distance < MIN_CAR_SPACING_AHEAD * 0.75f)) {
+                                v1->current_speed = 0;
+                                blockedByVehicleAhead = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        bool blockedByHuman = false;
+        if (!stoppedByLight && !blockedByVehicleAhead) {
+            Rect vehicleNextBounds = {v1->x + v1->current_speed, v1->y, v1->width, v1->height};
+            Rect crossingAreaCheck = {HUMAN_CROSSING_X_START - v1->width / 2.0f, ROAD_Y_BOTTOM, HUMAN_CROSSING_WIDTH + v1->width, ROAD_Y_TOP - ROAD_Y_BOTTOM};
+
+            if (checkAABBCollision(vehicleNextBounds, crossingAreaCheck)) {
+                for (auto* ped : activeHumans) {
+                    if (ped->state == HumanState::CROSSING_ROAD) {
+                        if (checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
+                             blockedByHuman = true;
+                             v1->current_speed = 0;
+                             break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (stoppedByLight || blockedByVehicleAhead || blockedByHuman) {
+            v1->current_speed = 0;
+        }
+
+        v1->x += v1->current_speed;
+
+        // Cleanup vehicles that go off-screen
+        if (v1->x > WINDOW_WIDTH + 100) {
+            delete vehicles[i];
+            vehicles.erase(vehicles.begin() + i);
+            i--; // Decrement i to account for the erased element
+            continue;
+        }
+        v1->updateHonk();
     }
 
-    cars.push_back(newCar);
+    // Spawn new vehicles periodically
+    if (vehicles.size() < 8 && rand() % CAR_SPAWN_RATE == 0) {
+        spawnNewVehicle();
+    }
 }
+
 
 void drawBackgroundScenes() {
         // Draw celestial bodies with smooth transitions
@@ -1349,9 +1604,8 @@ void drawSceneObjects() {
     // Draw traffic signal
     drawTrafficSignal(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START, mainTrafficLightState);
 
-    // Draw cars first (so they appear behind humans)
-    for (const auto &car : cars) {
-        car->draw();
+    for (const auto &v : vehicles) {
+        v->draw();
     }
 
     // Draw humans last (so they appear on top)
@@ -1519,128 +1773,6 @@ void updateHumans() {
         activeHumans.end());
 }
 
-// All other update functions (updateCars, updateDayNight, etc.) are assumed here
-
-void updateCars() {
-        for (size_t i = 0; i < cars.size(); ++i)
-    {
-        Car* car1 = cars[i];
-        float targetSpeed = USER_CAR_SPEED_BASE * car1->speedFactor * (car1->y > (ROAD_Y_BOTTOM + ROAD_Y_TOP) / 2.0f ? 0.90f : 1.0f);
-        car1->current_speed = targetSpeed;
-
-        bool stoppedByLight = false;
-
-        if (mainTrafficLightState == TrafficLightState::RED || yellowLightOn)
-        {
-            if (car1->x + car1->width < CAR_STOP_LINE_X + 5.0f &&
-                car1->x + car1->width > CAR_STOP_LINE_X - DISTANCE_TO_STOP_FROM_SIGNAL)
-            {
-                car1->current_speed = 0;
-                stoppedByLight = true;
-            }
-        }
-
-        bool blockedByCarAhead = false;
-        if (!stoppedByLight)
-        {
-            for (size_t j = 0; j < cars.size(); ++j)
-            {
-                if (i == j)
-                    continue;
-                Car* car2 = cars[j];
-                if (fabs(car1->y - car2->y) < CAR_SAME_LANE_Y_THRESHOLD)
-                {
-                    if (car2->x > car1->x)
-                    {
-                        float distance = car2->x - (car1->x + car1->width);
-                        if (distance < MIN_CAR_SPACING_AHEAD)
-                        {
-                            if (car2->current_speed < car1->current_speed)
-                            {
-                                car1->current_speed = car2->current_speed;
-                            }
-                            if (car2->current_speed < 0.1f && distance < MIN_CAR_SPACING_AHEAD * 0.75f)
-                            {
-                                car1->current_speed = 0;
-                                blockedByCarAhead = true;
-                            }
-                            if (distance < 2.0f)
-                            {
-                                car1->current_speed = 0;
-                                blockedByCarAhead = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        bool blockedByHuman = false;
-
-        if (!stoppedByLight && !blockedByCarAhead && car1->y < (ROAD_Y_BOTTOM + ROAD_Y_TOP) / 2.0f)
-        {
-            Rect carNextBounds = {car1->x + car1->current_speed, car1->y, car1->width, car1->height};
-
-            Rect crossingAreaForCarCheck = {HUMAN_CROSSING_X_START - car1->width / 2.0f, ROAD_Y_BOTTOM,
-                                            HUMAN_CROSSING_WIDTH + car1->width, ROAD_Y_TOP - ROAD_Y_BOTTOM};
-
-            if (checkAABBCollision(carNextBounds, crossingAreaForCarCheck))
-            {
-                for (auto* ped : activeHumans) {
-                    if (ped->state == HumanState::CROSSING_ROAD) {
-                        Rect pedBounds = ped->getBounds();
-
-                        Rect carCheckBounds = {carNextBounds.x + HUMAN_SAFETY_BUFFER, carNextBounds.y + HUMAN_SAFETY_BUFFER,
-                                               carNextBounds.w - 2 * HUMAN_SAFETY_BUFFER, carNextBounds.h - 2 * HUMAN_SAFETY_BUFFER};
-
-                        if (checkAABBCollision(carCheckBounds, pedBounds))
-                        {
-                            blockedByHuman = true;
-                            car1->current_speed = 0;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (stoppedByLight || blockedByCarAhead || blockedByHuman)
-        {
-            car1->current_speed = 0;
-        }
-        car1->x += car1->current_speed;
-
-        if (car1->x > WINDOW_WIDTH + car1->width + 20)
-        {
-            float respawnX = -car1->width - 100.0f;
-            for (const auto &car2 : cars)
-            {
-                if (fabs(car1->y - car2->y) < CAR_SAME_LANE_Y_THRESHOLD)
-                {
-                    if (car2->x < respawnX)
-                    {
-                        respawnX = std::max(respawnX, car2->x + MIN_CAR_SPAWN_DISTANCE);
-                    }
-                }
-            }
-            car1->x = respawnX - (rand() % 100);
-            car1->speedFactor = 0.85f + (rand() % 31) / 100.0f;
-            car1->r = (rand() % 10) / 10.0f;
-            car1->g = (rand() % 10) / 10.0f;
-            car1->b = (rand() % 10) / 10.0f;
-            if (car1->r < 0.1f && car1->g < 0.1f && car1->b < 0.1f)
-                car1->r = 0.5f;
-        }
-        car1->updateHonk();
-    }
-
-    if (cars.size() < 4 && rand() % CAR_SPAWN_RATE == 0)
-    {
-        spawnNewCar();
-    }
-}
-
-
 void showGreenLight() {
     mainTrafficLightState = TrafficLightState::GREEN;
     pedestrianLightState = PedestrianLightState::DONT_WALK;
@@ -1688,18 +1820,15 @@ void showTransitionDelay(std::function<void()> callback, int delay) {
     glutTimerFunc(delay, timerCallback, 0);
 }
 
-// Add this function before updateTrafficLights
 int countCarsNearCrossing() {
     int count = 0;
-    for (const auto& car : cars) {
-        // Check if car is within threshold distance of crossing
-        if (std::abs(car->x - HUMAN_CROSSING_X_START) < CAR_PRIORITY_THRESHOLD) {
+    for (const auto& v : vehicles) {
+        if (v->x < TRAFFIC_LIGHT_X && v->x > TRAFFIC_LIGHT_X - CAR_PRIORITY_THRESHOLD) {
             count++;
         }
     }
     return count;
 }
-
 void updateTrafficLights() {
     bool isWaiting = HumansWaitingToCross() > 0;
     bool isCrossing = HumansCrossing() > 0;
@@ -1733,7 +1862,7 @@ void updateTrafficLights() {
 }
 
 void updateScene() {
-    updateCars();
+    updateVehicles();
     updateHumans();
     updateDayNight();
     updateClouds();
@@ -1819,9 +1948,9 @@ void keyboard(unsigned char key, int x, int y) {
         case 27: // ESC key
             // Clean up dynamically allocated memory
             for (auto* man : activeHumans) { delete man; }
-            for (auto* car : cars) { delete car; }
+            for (auto* v : vehicles) { delete v; } // Changed from car
             activeHumans.clear();
-            cars.clear();
+            vehicles.clear(); // Changed from cars
             exit(0);
             break;
     }
@@ -1851,9 +1980,9 @@ void init()
     // Initialize random seed
     srand(time(0));
 
-    // Initialize cars
-    for (int i = 0; i < 4; ++i) { // Create 4 initial cars
-        spawnNewCar();
+    // Initialize vehicles
+    for (int i = 0; i < 4; ++i) {
+        spawnNewVehicle();
     }
 
     // Initialize humans with random properties
