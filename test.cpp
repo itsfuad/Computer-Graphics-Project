@@ -1277,24 +1277,20 @@ void spawnNewVehicle() {
     VehicleType type;
 
     // Randomly choose a vehicle type
-    // int typeRoll = rand() % 20; // 0-5: Car, 6-7: Truck, 8-9: Bus
-    // if (typeRoll < 10) {
-    //     type = VehicleType::CAR;
-    //     spawnW = 60.0f;
-    //     spawnH = 28.0f;
-    // } else if (typeRoll < 13) {
-    //     type = VehicleType::TRUCK;
-    //     spawnW = 90.0f;
-    //     spawnH = 35.0f;
-    // } else {
-    //     type = VehicleType::BUS;
-    //     spawnW = 120.0f;
-    //     spawnH = 40.0f;
-    // }
-
-    type = VehicleType::TRUCK;
-    spawnW = 90.0f;
-    spawnH = 35.0f;
+    int typeRoll = rand() % 20; // 0-5: Car, 6-7: Truck, 8-9: Bus
+    if (typeRoll < 10) {
+        type = VehicleType::CAR;
+        spawnW = 80.0f;  // Increased from 60
+        spawnH = 35.0f;  // Increased from 28
+    } else if (typeRoll < 13) {
+        type = VehicleType::TRUCK;
+        spawnW = 120.0f; // Increased from 90
+        spawnH = 45.0f;  // Increased from 35
+    } else {
+        type = VehicleType::BUS;
+        spawnW = 160.0f; // Increased from 120
+        spawnH = 50.0f;  // Increased from 40
+    }
 
     float spawnX = -spawnW - 150.0f; // Start further back
     float spawnY;
