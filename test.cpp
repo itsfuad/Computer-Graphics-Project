@@ -105,6 +105,7 @@ struct Rect {
 };
 
 // Forward declarations
+class Drawable;
 class Vehicle;
 class AdvancedHuman;
 
@@ -326,7 +327,6 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
     drawRect(x + width - 5, y + height * 0.25f, 4, 4);
 }
 
-
 // ===================================================================
 //  Vehicle Class (replaces Car)
 // ===================================================================
@@ -344,20 +344,7 @@ public:
         current_speed = USER_CAR_SPEED_BASE * speedFactor;
     }
 
-    void draw() {
-        // Call the appropriate drawing function based on type
-        switch (type) {
-            case VehicleType::CAR:
-                drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
-                break;
-            case VehicleType::TRUCK:
-                drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
-                break;
-            case VehicleType::BUS:
-                drawBus(x, y, width, height, r, g, b, isNight, current_speed);
-                break;
-        }
-
+    virtual void draw() {
         if (DEBUG_ON && !scenePaused) {
             Rect b = {x, y, width, height};
             glColor3f(0.0f, 1.0f, 0.0f);  // Green for bounding box
@@ -375,6 +362,69 @@ public:
     void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
 };
 
+
+// ===================================================================
+//  Car, Truck, Bus Classes (inherit from Vehicle)
+// ===================================================================
+class Car : public Vehicle {
+public:
+    Car(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::CAR) {}
+    void draw() override {
+        drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+};
+
+class Truck : public Vehicle {
+public:
+    Truck(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::TRUCK) {}
+    void draw() override {
+        drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+};
+
+class Bus : public Vehicle {
+public:
+    Bus(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::BUS) {}
+    void draw() override {
+        drawBus(x, y, width, height, r, g, b, isNight, current_speed);
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+};
 
 // Global collections of scene objects
 std::vector<Vehicle*> vehicles; // Changed from Car
@@ -1277,7 +1327,7 @@ void spawnNewVehicle() {
     VehicleType type;
 
     // Randomly choose a vehicle type
-    int typeRoll = rand() % 20; // 0-5: Car, 6-7: Truck, 8-9: Bus
+    int typeRoll = rand() % 20; // 0-5: Car,  6-7: Truck, 8-9: Bus
     if (typeRoll < 10) {
         type = VehicleType::CAR;
         spawnW = 80.0f;  // Increased from 60
@@ -1317,11 +1367,19 @@ void spawnNewVehicle() {
         }
     }
 
-    Vehicle* newVehicle = new Vehicle(spawnX, spawnY, spawnW, spawnH,
+    Vehicle* newVehicle = nullptr;
+    if (type == VehicleType::CAR) newVehicle = new Car(spawnX, spawnY, spawnW, spawnH,
         (rand() % 10) / 10.0f,
         (rand() % 10) / 10.0f,
+        (rand() % 10) / 10.0f);
+    else if (type == VehicleType::TRUCK) newVehicle = new Truck(spawnX, spawnY, spawnW, spawnH,
         (rand() % 10) / 10.0f,
-        type);
+        (rand() % 10) / 10.0f,
+        (rand() % 10) / 10.0f);
+    else newVehicle = new Bus(spawnX, spawnY, spawnW, spawnH,
+        (rand() % 10) / 10.0f,
+        (rand() % 10) / 10.0f,
+        (rand() % 10) / 10.0f);
 
     if (newVehicle->r < 0.1f && newVehicle->g < 0.1f && newVehicle->b < 0.1f) {
         newVehicle->r = 0.5f; // Avoid pure black
@@ -1864,7 +1922,6 @@ void updateScene() {
     updateClouds();
     updateTrafficLights();
 }
-
 
 // Modify the display function to include the new elements
 void display()
