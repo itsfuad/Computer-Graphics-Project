@@ -28,10 +28,9 @@ struct Color {
 
 // Redesigned hairstyles for better visuals and 4-direction visibility
 enum class HairStyle {
-    Normal,
     Spiky,
     FlatTop,
-    Ponytail
+    Bald
 };
 
 class Man {
@@ -158,36 +157,6 @@ public:
         const float shoulderY = torsoTop - 0.02f, shoulderX = torsoWidth / 2;
         const float hipY = torsoBottom, hipX = torsoWidth / 3;
 
-        // --- LEGS ---
-        glPushMatrix();
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        // Left Leg
-        glPushMatrix();
-        glTranslatef(hipX, hipY, 0.0f);
-        if(direction == 0 || direction == 1) glRotatef(-legAngle, 0, 0, 1);
-        else glTranslatef(0.0f, -legLift, 0.0f);
-        drawLine(0, 0, 0, -0.1f);
-        glTranslatef(0, -0.1f, 0);
-        glRotatef(std::max(0.0f, -legAngle * 0.5f), 0, 0, 1);
-        drawLine(0, 0, 0, -0.09f);
-        glColor3f(0.1f, 0.1f, 0.1f);
-        drawRectangle(0.0f, -0.1f, 0.04f, 0.02f);
-        glPopMatrix();
-        // Right Leg
-        glPushMatrix();
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        glTranslatef(-hipX, hipY, 0.0f);
-        if(direction == 0 || direction == 1) glRotatef(legAngle, 0, 0, 1);
-        else glTranslatef(0.0f, legLift, 0.0f);
-        drawLine(0, 0, 0, -0.1f);
-        glTranslatef(0, -0.1f, 0);
-        glRotatef(std::max(0.0f, legAngle * 0.5f), 0, 0, 1);
-        drawLine(0, 0, 0, -0.09f);
-        glColor3f(0.1f, 0.1f, 0.1f);
-        drawRectangle(0.0f, -0.1f, 0.04f, 0.02f);
-        glPopMatrix();
-        glPopMatrix();
-
         // --- ARMS ---
         glColor3f(skinColor.r, skinColor.g, skinColor.b);
         // Left Arm
@@ -201,9 +170,48 @@ public:
         drawCircle(0, -0.075f, 0.015f);
         glPopMatrix();
 
+        // --- LEGS ---
+        glPushMatrix();
+        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
+        // Left Leg
+        glPushMatrix();
+        glTranslatef(hipX, hipY, 0.0f);
+        if(direction == 0 || direction == 1) glRotatef(-legAngle, 0, 0, 1);
+        else glTranslatef(0.0f, -legLift, 0.0f);
+        drawLine(0, 0, 0, -0.1f);
+        glTranslatef(0, -0.1f, 0);
+        glRotatef(std::max(0.0f, -legAngle * 0.5f), 0, 0, 1);
+        drawLine(0, 0, 0, -0.05f);
+        glColor3f(0.1f, 0.1f, 0.1f);
+        drawRectangle(-0.01f, -0.04f, 0.04f, 0.02f);
+        glPopMatrix();
+        // Right Leg
+        glPushMatrix();
+        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
+        glTranslatef(-hipX, hipY, 0.0f);
+        if(direction == 0 || direction == 1) glRotatef(legAngle, 0, 0, 1);
+        else glTranslatef(0.0f, legLift, 0.0f);
+        drawLine(0, 0, 0, -0.1f);
+        glTranslatef(0, -0.1f, 0);
+        glRotatef(std::max(0.0f, legAngle * 0.5f), 0, 0, 1);
+        drawLine(0, 0, 0, -0.05f);
+        glColor3f(0.1f, 0.1f, 0.1f);
+        drawRectangle(-0.01f, -0.04f, 0.04f, 0.02f);
+        glPopMatrix();
+        glPopMatrix();
+
         // --- TORSO ---
         glColor3f(shirtColor.r, shirtColor.g, shirtColor.b);
         drawRectangle(0.0f, (torsoTop + torsoBottom) / 2, torsoWidth, torsoTop - torsoBottom);
+
+        // --- PANT TOP ---
+        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
+        glBegin(GL_QUADS);
+        glVertex2f(-torsoWidth/2 + 0.002, hipY - 0.03); // Bottom left
+        glVertex2f(torsoWidth/2 - 0.002, hipY - 0.03);  // Bottom right
+        glVertex2f(torsoWidth/2, hipY + 0.01f); // Top right
+        glVertex2f(-torsoWidth/2, hipY + 0.01f); // Top left
+        glEnd();
 
          // --- HEAD, FACE, and HAIR ---
         // 1. Draw Skin
@@ -213,48 +221,65 @@ public:
         // 3. Draw New 4-Directional Hair
         glColor3f(hairColor.r, hairColor.g, hairColor.b);
         switch(hairStyle) {
-            case HairStyle::Normal:
-                // Front and Side: A simple semicircle
-                // Back: A full circle
-                if(direction == 2){
-                    drawCircle(0.0f, headY, headRadius, 20);
-                } else {
-                    glBegin(GL_TRIANGLE_FAN);
-                    glVertex2f(0.0f, headY);
-                    for (int i = 0; i <= 12; i++) {
-                        float angle = M_PI * i / 12.0f;
-                        glVertex2f(cos(angle) * headRadius, sin(angle) * headRadius + headY);
-                    }
-                    glEnd();
-                }
-                break;
-
             case HairStyle::Spiky:
                 // Draws spikes on top of a base hair shape in all directions.
                 if (direction == 2) { // Back View
-                     drawCircle(0.0f, headY, headRadius, 20); // Base hair
-                     for (int i = -1; i <= 1; ++i) { // Fewer spikes for back
+                     // More detailed base hair for back view
+                    glBegin(GL_POLYGON);
+                    glVertex2f(-headRadius * 0.9f, headY + headRadius * 0.3f); // Lower left
+                    glVertex2f( headRadius * 0.9f, headY + headRadius * 0.3f); // Lower right
+                    glVertex2f( headRadius * 0.8f, headY + headRadius * 0.8f); // Upper right
+                    glVertex2f(-headRadius * 0.8f, headY + headRadius * 0.8f); // Upper left
+                    glEnd();
+
+                    // Spikes for back view - evenly distributed
+                     for (int i = -1; i <= 1; ++i) { // 3 spikes for back
                         float bx = i * 0.025f;
                         glBegin(GL_TRIANGLES);
-                        glVertex2f(bx - 0.01f, headY + headRadius * 0.9f);
-                        glVertex2f(bx + 0.01f, headY + headRadius * 0.9f);
-                        glVertex2f(bx, headY + headRadius * 1.5f);
+                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx, headY + headRadius * 1.3f);
                         glEnd();
                     }
-                } else { // Front and Side View
-                    // Base hair shape
-                    glBegin(GL_POLYGON);
-                    glVertex2f(-headRadius, headY); glVertex2f(headRadius, headY);
-                    glVertex2f(headRadius, headY+0.02f); glVertex2f(-headRadius, headY+0.02f);
+                    //back bottom hair U shape on the back of the full head
+                    glBegin(GL_POLYGON); // U shape
+                    glVertex2f(-headRadius * 0.9f, headY + headRadius * 0.4f); // Lower left
+                    glVertex2f( headRadius * 0.9f, headY + headRadius * 0.4f); // Lower right
+                    glVertex2f( headRadius * 0.7f, headY + headRadius * -0.8f); // Upper right
+                    glVertex2f(-headRadius * 0.7f, headY + headRadius * -0.8f); // Upper left
                     glEnd();
-                    // Spikes
-                    for (int i = -2; i <= 2; ++i) {
-                        if (direction != 3 && i > 0) continue; // Fewer spikes on side view
-                        float bx = i * 0.018f;
+                } else if (direction == 0 || direction == 1) { // Front and Side View (direction 0, 1, or 3)
+                    // side view
+                    // back side hair
+                    glColor3f(hairColor.r, hairColor.g, hairColor.b);
+                    glBegin(GL_POLYGON);
+                    glVertex2f(headRadius * 0.3f, headY + headRadius * 0.8f); // Top left
+                    glVertex2f(headRadius * 0.85f, headY + headRadius * 0.8f); // Top right
+                    glVertex2f(headRadius * 1.0f, headY - headRadius * 0.3f); // Bottom right
+                    glVertex2f(headRadius * 0.8f, headY - headRadius * 0.3f); // Bottom left
+                    glEnd();
+                    for (int i = -1; i <= 1; ++i) {
+                        float bx = i * 0.025f;
                         glBegin(GL_TRIANGLES);
-                        glVertex2f(bx - 0.01f, headY + 0.02f);
-                        glVertex2f(bx + 0.01f, headY + 0.02f);
-                        glVertex2f(bx, headY + 0.06f);
+                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx, headY + headRadius * 1.3f);
+                        glEnd();
+                    }
+                } else { // front view
+                    for (int i = -1; i <= 1; ++i) {
+                        float bx = i * 0.025f;
+                        glBegin(GL_TRIANGLES);
+                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx, headY + headRadius * 1.3f);
+                        glEnd();
+                        //a rect at the bottom of the spike triangle base
+                        glBegin(GL_QUADS);
+                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
+                        glVertex2f(bx + 0.01f, headY + headRadius * 0.6f);
+                        glVertex2f(bx - 0.01f, headY + headRadius * 0.6f);
                         glEnd();
                     }
                 }
@@ -266,30 +291,30 @@ public:
                     drawRectangle(0.0f, headY + headRadius * 0.5f, headRadius * 2, headRadius);
                     drawCircle(0.0f, headY, headRadius*0.95f, 20);
                 } else { // Front and Side
-                    drawRectangle(0.0f, headY + headRadius, headRadius * 2, headRadius*0.4f);
-                    drawRectangle(0.0f, headY + headRadius * 0.4f, headRadius * 2 * 0.9f, headRadius);
+                    // Top flat part
+                    drawRectangle(0.0f, headY + headRadius * 0.8f, headRadius * 1.8f, headRadius * 0.5f);
+                    // Sides, slightly tapered
+                    glBegin(GL_QUADS);
+                    glVertex2f(-headRadius * 0.9f, headY + headRadius * 0.55f);
+                    glVertex2f( headRadius * 0.9f, headY + headRadius * 0.55f);
+                    glVertex2f( headRadius * 1.0f, headY + headRadius * 0.5f);
+                    glVertex2f(-headRadius * 1.0f, headY + headRadius * 0.5f);
+                    glEnd();
+
+                    if (direction == 0 || direction == 1) {
+                        glColor3f(hairColor.r, hairColor.g, hairColor.b);
+                        glBegin(GL_POLYGON);
+                        glVertex2f(headRadius * 0.3f, headY + headRadius * 0.8f); // Top left
+                        glVertex2f(headRadius * 0.85f, headY + headRadius * 0.8f); // Top right
+                        glVertex2f(headRadius * 1.0f, headY - headRadius * 0.3f); // Bottom right
+                        glVertex2f(headRadius * 0.8f, headY - headRadius * 0.3f); // Bottom left
+                        glEnd();
+                    }
                 }
                 break;
 
-            case HairStyle::Ponytail:
-                // Normal hair on top, with a ponytail visible from sides and back.
-                if(direction != 2) { // Front and Side
-                    glBegin(GL_TRIANGLE_FAN);
-                    glVertex2f(0.0f, headY);
-                    for (int i = 0; i <= 12; i++) {
-                        float angle = M_PI * i / 12.0f;
-                        glVertex2f(cos(angle) * headRadius, sin(angle) * headRadius + headY);
-                    }
-                    glEnd();
-                } else { // Back
-                    drawCircle(0.0f, headY, headRadius, 20);
-                }
-                // Draw the ponytail itself if not facing front
-                if(direction != 3) {
-                    drawCircle(-headRadius, headY - 0.01f, 0.015f, 20); // The hair tie
-                    glLineWidth(10.0f);
-                    drawLine(-headRadius - 0.01f, headY - 0.02f, -headRadius - 0.02f, headY - 0.08f, 10.0f);
-                }
+            case HairStyle::Bald:
+                // Just the skin-colored head is drawn by default (no additional hair drawing needed).
                 break;
         }
 
@@ -384,6 +409,7 @@ void specialKeys(int key, int x, int y) {
             case GLUT_KEY_UP:    dir = 2; break;
             case GLUT_KEY_DOWN:  dir = 3; break;
         }
+        std::cout << "Direction: " << dir << std::endl;
         men[activeManIndex]->startWalking(dir);
     }
 }
@@ -461,7 +487,7 @@ int main(int argc, char** argv) {
     Color blackPants  = {0.1f, 0.1f, 0.1f};
     Color brownHair  = {0.4f, 0.2f, 0.1f};
     Color blackHair  = {0.1f, 0.1f, 0.1f};
-    Color darkSkin   = {0.2f, 0.1f, 0.05f};
+    Color darkSkin   = {0.4f, 0.3f, 0.07f};
     Color lightSkin  = {0.9f, 0.8f, 0.7f};
     Color lightBrown = {0.9f, 0.7f, 0.5f};
 
@@ -469,11 +495,12 @@ int main(int argc, char** argv) {
     men.push_back(new Man(0.2f, -0.2f, 0.01f,
         redShirt, bluePants, lightSkin, brownHair, HairStyle::Spiky));
 
-    men.push_back(new Man(-0.5f, -0.3f, 0.015f,
-        tealShirt, blackPants, darkSkin, blackHair, HairStyle::Ponytail));
-
     men.push_back(new Man(-0.8f, -0.4f, 0.015f,
         tealShirt, blackPants, lightBrown, blackHair, HairStyle::FlatTop));
+
+    // Add a bald man
+    men.push_back(new Man(0.5f, -0.1f, 0.012f,
+        bluePants, redShirt, lightSkin, blackHair, HairStyle::Bald));
 
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
@@ -484,7 +511,7 @@ int main(int argc, char** argv) {
 
     std::cout << "--- Controls ---" << std::endl;
     std::cout << "Arrow Keys: Move the active man" << std::endl;
-    std::cout << "Keys '1' & '2': Switch control between men" << std::endl;
+    std::cout << "Keys '1', '2', '3', '4': Switch control between men" << std::endl;
     std::cout << "'R': Reset all positions" << std::endl;
     std::cout << "ESC: Exit" << std::endl;
     std::cout << "------------------" << std::endl;
