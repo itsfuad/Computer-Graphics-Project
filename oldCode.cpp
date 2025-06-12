@@ -13,13 +13,6 @@ const float USER_CAR_SPEED_BASE = 1.75f;
 const float USER_HUMAN_SPEED = 2.80f;
 const float USER_HUMAN_SIDEWALK_SPEED_FACTOR = 1.2f;
 
-
-const int USER_PED_WALK_START_DELAY_AFTER_RED = 60;
-const int USER_PED_WALK_DURATION = 400;
-const int USER_PED_BLINK_DURATION = 150;
-const int USER_TL_RED_DURATION = USER_PED_WALK_START_DELAY_AFTER_RED + USER_PED_WALK_DURATION + USER_PED_BLINK_DURATION + 60;
-
-
 const float MIN_CAR_SPACING_AHEAD = 20.0f;
 const float MIN_CAR_SPAWN_DISTANCE = 300.0f;
 const float CAR_SAME_LANE_Y_THRESHOLD = 5.0f;
@@ -65,21 +58,9 @@ enum class PedestrianLightState {
     WALK,
 };
 
-enum class HumanState
-{
-    WALKING_ON_SIDEWALK,
-    WAITING_AT_CROSSING_EDGE,
-    CROSSING_ROAD,
-    REACHED_OTHER_SIDEWALK,
-    WALKING_AWAY_ON_SIDEWALK,
-    DESPAWNED
-};
-
 // Replace the global variable
 PedestrianLightState pedestrianLightState = PedestrianLightState::DONT_WALK;
 
-bool pedBlinkOn = true;
-int pedBlinkTimer = 0;
 bool DEBUG_drawBoundingBoxes = false;
 bool yellowLightOn = false;
 
@@ -102,10 +83,6 @@ const float HUMAN_CROSSING_CENTER_X = HUMAN_CROSSING_X_START + HUMAN_CROSSING_WI
 const int HUMAN_ANIMATION_MAX_FRAMES = 4;
 const int HUMAN_ANIMATION_FRAME_DELAY = 12;
 const int YELLOW_BLINK_INTERVAL = 15;  // Frames between yellow light blinks
-const int YELLOW_DURATION = 90;        // How long yellow light stays on
-const int GREEN_DURATION = 300;        // How long green light stays on
-const int RED_DURATION = 400;          // How long red light stays on
-
 struct Rect
 {
     float x, y, w, h;
@@ -126,12 +103,11 @@ int timeNow()
 }
 
 struct Car;
-class Man;
+struct Human;
 std::vector<Car> cars;
-std::vector<Man> activeHumans;
+std::vector<Human> activeHumans;
 void reshape(int w, int h);
 void drawTrafficSignal(float x, float y, TrafficLightState state);
-bool areCarsNearCrossing();
 
 void drawText(float x, float y, const char* text, float scale = 0.7f) {
     glPushMatrix();
@@ -181,412 +157,6 @@ void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3) {
     glVertex2f(x3, y3);
     glEnd();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// A simple struct to hold RGB color values
-struct Color {
-    float r, g, b;
-};
-
-// ===================================================================
-//  Man Class Definition (with inline methods)
-// ===================================================================
-
-// Redesigned hairstyles for better visuals and 4-direction visibility
-enum class HairStyle {
-    Spiky,
-    FlatTop,
-    Bald
-};
-
-class Man {
-
-public:
-    int direction;
-    bool willCrossRoad;
-    float x, y;
-    float walkCycle;
-    bool isWalking;
-    float speed;
-    HumanState state;
-
-    // Style properties
-    Color shirtColor;
-    Color pantsColor;
-    Color hairColor;
-    Color skinColor;
-    HairStyle hairStyle;
-    // Updated constructor to accept hair style and color
-    Man(float startX, float startY, float moveSpeed, const Color& shirt, const Color& pants, const Color& skin, const Color& hair, HairStyle style) {
-        x = startX;
-        y = startY;
-        speed = moveSpeed;
-        walkCycle = 0.0f;
-        isWalking = true;
-        direction = 0;  // Start facing right
-        shirtColor = shirt;
-        pantsColor = pants;
-        hairColor = hair;
-        skinColor = skin;
-        hairStyle = style;
-        state = HumanState::WALKING_ON_SIDEWALK;  // Start in walking state
-        willCrossRoad = false;  // Initialize willCrossRoad to false
-    }
-
-    // --- Control Methods ---
-    void startWalking(int dir) {
-        isWalking = true;
-        direction = dir;
-    }
-
-    void stopWalking() {
-        isWalking = false;
-        walkCycle = 0.0f;
-    }
-
-    void resetPosition(float newX, float newY) {
-        x = newX;
-        y = newY;
-        isWalking = false;
-        walkCycle = 0.0f;
-    }
-
-    Rect getBounds() const {
-        return {x - 0.1f, y - 0.2f, 0.2f, 0.4f};  // Centered bounding box around the man
-    }
-
-    // --- Core Public Methods ---
-    void update() {
-        if (isWalking) {
-            walkCycle += 0.2f;
-
-            switch (state) {
-                case HumanState::WALKING_ON_SIDEWALK:
-                    x += speed;
-                    if (x >= HUMAN_CROSSING_X_START - 20.0f && willCrossRoad) {
-                        state = HumanState::WAITING_AT_CROSSING_EDGE;
-                        isWalking = false;
-                    } else if (x > WINDOW_WIDTH + 50.0f) {
-                        state = HumanState::DESPAWNED;
-                    }
-                    break;
-
-                case HumanState::WAITING_AT_CROSSING_EDGE:
-                    std::cout << "Human " << this->x << ": Waiting. PedLight: " << (pedestrianLightState == PedestrianLightState::WALK ? "WALK" : "DONT_WALK") << ", YellowLightOn: " << yellowLightOn << std::endl;
-                    if (pedestrianLightState == PedestrianLightState::WALK && !yellowLightOn) {
-                        state = HumanState::CROSSING_ROAD;
-                        isWalking = true;
-                        direction = 0; // Face right while crossing
-                        std::cout << "Human " << this->x << ": Started crossing!" << std::endl;
-                    }
-                    break;
-
-                case HumanState::CROSSING_ROAD:
-                    x += speed;
-                    if (x >= HUMAN_CROSSING_X_START + HUMAN_CROSSING_WIDTH + 20.0f) {
-                        state = HumanState::REACHED_OTHER_SIDEWALK;
-                        isWalking = false;
-                    }
-                    break;
-
-                case HumanState::REACHED_OTHER_SIDEWALK:
-                    state = HumanState::WALKING_AWAY_ON_SIDEWALK;
-                    isWalking = true;
-                    direction = 0; // Face right while walking away
-                    break;
-
-                case HumanState::WALKING_AWAY_ON_SIDEWALK:
-                    x += speed;
-                    if (x > WINDOW_WIDTH + 50.0f) {
-                        state = HumanState::DESPAWNED;
-                    }
-                    break;
-
-                case HumanState::DESPAWNED:
-                    // Do nothing, will be removed in updateHumans()
-                    break;
-            }
-        }
-    }
-
-    void draw() const {
-        glPushMatrix();
-        glTranslatef(x, y, 0.0f);
-
-        if (direction == 1) { // Flip for left-facing view
-            glScalef(-1.0f, 1.0f, 1.0f);
-        }
-
-        float armAngle = 0.0f, legAngle = 0.0f, legLift = 0.0f;
-
-        if (isWalking) {
-            if (direction == 0 || direction == 1) { // Left/Right
-                legAngle = sin(walkCycle) * 25.0f;
-                armAngle = -sin(walkCycle) * 20.0f;
-            } else { // Up/Down
-                armAngle = sin(walkCycle) * 15.0f;
-                legLift = std::max(0.0f, (float)sin(walkCycle * 2.0f)) * 0.03f;
-            }
-        }
-
-        const float torsoTop = 0.1f, torsoBottom = -0.05f, torsoWidth = 0.08f;
-        const float headRadius = 0.04f, neckY = torsoTop, headY = neckY + headRadius;
-        const float shoulderY = torsoTop - 0.02f, shoulderX = torsoWidth / 2;
-        const float hipY = torsoBottom, hipX = torsoWidth / 4;
-
-        // --- ARMS ---
-        glColor3f(skinColor.r, skinColor.g, skinColor.b);
-        // Left Arm
-        glPushMatrix();
-        glTranslatef(shoulderX, shoulderY, 0.0f);
-        glRotatef(-armAngle, 0, 0, 1);
-        drawLine(0, 0, 0, -0.08f);
-        glTranslatef(0, -0.08f, 0);
-        glRotatef(-30.0f, 0, 0, 1);
-        drawLine(0, 0, 0, -0.07f);
-        drawCircle(0, -0.075f, 0.015f);
-        glPopMatrix();
-
-        // --- LEGS ---
-        glPushMatrix();
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        // Left Leg
-        glPushMatrix();
-        glTranslatef(hipX + 0.01f, hipY + 0.02f, 0.0f);  // Moved up more
-        if(direction == 0 || direction == 1) glRotatef(-legAngle, 0, 0, 1);
-        else glTranslatef(0.0f, -legLift, 0.0f);
-        drawLine(0, 0, 0, -0.13f);  // Increased to compensate for higher start
-        glTranslatef(0, -0.13f, 0);
-        glRotatef(std::max(0.0f, -legAngle * 0.5f), 0, 0, 1);
-        drawLine(0, 0, 0, -0.06f);
-        glColor3f(0.1f, 0.1f, 0.1f);
-        drawRectangle(-0.01f, -0.06f, 0.04f, 0.02f);  // Moved down from -0.04f to -0.06f
-        glPopMatrix();
-        // Right Leg
-        glPushMatrix();
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        glTranslatef(-hipX - 0.01f, hipY + 0.02f, 0.0f);  // Moved up more
-        if(direction == 0 || direction == 1) glRotatef(legAngle, 0, 0, 1);
-        else glTranslatef(0.0f, legLift, 0.0f);
-        drawLine(0, 0, 0, -0.13f);  // Increased to compensate for higher start
-        glTranslatef(0, -0.13f, 0);
-        glRotatef(std::max(0.0f, legAngle * 0.5f), 0, 0, 1);
-        drawLine(0, 0, 0, -0.06f);
-        glColor3f(0.1f, 0.1f, 0.1f);
-        drawRectangle(-0.01f, -0.06f, 0.04f, 0.02f);  // Moved down from -0.04f to -0.06f
-        glPopMatrix();
-        glPopMatrix();
-
-        // --- TORSO ---
-        glColor3f(shirtColor.r, shirtColor.g, shirtColor.b);
-        drawRectangle(0.0f, (torsoTop + torsoBottom) / 2, torsoWidth, torsoTop - torsoBottom);
-
-        // --- PANT TOP ---
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        glBegin(GL_TRIANGLE_FAN);
-        // Center point at the top
-        glVertex2f(0.0f, hipY + 0.01f);
-        // Draw the arc from left to right
-        for(int i = 0; i <= 180; i += 10) {
-            float angle = i * M_PI / 180.0f;
-            float x = ((torsoWidth + 0.005)/2 - 0.002) * cos(angle);
-            float y = hipY + 0.01f - ((torsoWidth + 0.005)/2 - 0.002) * sin(angle);
-            glVertex2f(x, y);
-        }
-        glEnd();
-
-         // --- HEAD, FACE, and HAIR ---
-        // 1. Draw Skin
-        glColor3f(skinColor.r, skinColor.g, skinColor.b);
-        drawCircle(0.0f, headY, headRadius, 20);
-
-        // 3. Draw New 4-Directional Hair
-        glColor3f(hairColor.r, hairColor.g, hairColor.b);
-        switch(hairStyle) {
-            case HairStyle::Spiky:
-                // Draws spikes on top of a base hair shape in all directions.
-                if (direction == 2) { // Back View
-                     // More detailed base hair for back view
-                    glBegin(GL_POLYGON);
-                    glVertex2f(-headRadius * 0.9f, headY + headRadius * 0.3f); // Lower left
-                    glVertex2f( headRadius * 0.9f, headY + headRadius * 0.3f); // Lower right
-                    glVertex2f( headRadius * 0.8f, headY + headRadius * 0.8f); // Upper right
-                    glVertex2f(-headRadius * 0.8f, headY + headRadius * 0.8f); // Upper left
-                    glEnd();
-
-                    // Spikes for back view - evenly distributed
-                     for (int i = -1; i <= 1; ++i) { // 3 spikes for back
-                        float bx = i * 0.025f;
-                        glBegin(GL_TRIANGLES);
-                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx, headY + headRadius * 1.3f);
-                        glEnd();
-                    }
-                    //back bottom hair U shape on the back of the full head
-                    glBegin(GL_POLYGON); // U shape
-                    glVertex2f(-headRadius * 0.9f, headY + headRadius * 0.4f); // Lower left
-                    glVertex2f( headRadius * 0.9f, headY + headRadius * 0.4f); // Lower right
-                    glVertex2f( headRadius * 0.7f, headY + headRadius * -0.8f); // Upper right
-                    glVertex2f(-headRadius * 0.7f, headY + headRadius * -0.8f); // Upper left
-                    glEnd();
-                } else if (direction == 0 || direction == 1) { // Front and Side View (direction 0, 1, or 3)
-                    // side view
-                    // back side hair
-                    glColor3f(hairColor.r, hairColor.g, hairColor.b);
-                    glBegin(GL_POLYGON);
-                    glVertex2f(headRadius * 0.3f, headY + headRadius * 0.8f); // Top left
-                    glVertex2f(headRadius * 0.85f, headY + headRadius * 0.8f); // Top right
-                    glVertex2f(headRadius * 1.0f, headY - headRadius * 0.3f); // Bottom right
-                    glVertex2f(headRadius * 0.8f, headY - headRadius * 0.3f); // Bottom left
-                    glEnd();
-                    for (int i = -1; i <= 1; ++i) {
-                        float bx = i * 0.025f;
-                        glBegin(GL_TRIANGLES);
-                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx, headY + headRadius * 1.3f);
-                        glEnd();
-                    }
-                } else { // front view
-                    for (int i = -1; i <= 1; ++i) {
-                        float bx = i * 0.025f;
-                        glBegin(GL_TRIANGLES);
-                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx, headY + headRadius * 1.3f);
-                        glEnd();
-                        //a rect at the bottom of the spike triangle base
-                        glBegin(GL_QUADS);
-                        glVertex2f(bx - 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx + 0.01f, headY + headRadius * 0.8f);
-                        glVertex2f(bx + 0.01f, headY + headRadius * 0.6f);
-                        glVertex2f(bx - 0.01f, headY + headRadius * 0.6f);
-                        glEnd();
-                    }
-                }
-                break;
-
-            case HairStyle::FlatTop:
-                // A classic flat-top haircut
-                if(direction == 2){ // Back
-                    drawRectangle(0.0f, headY + headRadius * 0.5f, headRadius * 2, headRadius);
-                    drawCircle(0.0f, headY, headRadius*0.95f, 20);
-                } else { // Front and Side
-                    // Top flat part
-                    drawRectangle(0.0f, headY + headRadius * 0.8f, headRadius * 1.8f, headRadius * 0.5f);
-                    // Sides, slightly tapered
-                    glBegin(GL_QUADS);
-                    glVertex2f(-headRadius * 0.9f, headY + headRadius * 0.55f);
-                    glVertex2f( headRadius * 0.9f, headY + headRadius * 0.55f);
-                    glVertex2f( headRadius * 1.0f, headY + headRadius * 0.5f);
-                    glVertex2f(-headRadius * 1.0f, headY + headRadius * 0.5f);
-                    glEnd();
-
-                    if (direction == 0 || direction == 1) {
-                        glColor3f(hairColor.r, hairColor.g, hairColor.b);
-                        glBegin(GL_POLYGON);
-                        glVertex2f(headRadius * 0.3f, headY + headRadius * 0.8f); // Top left
-                        glVertex2f(headRadius * 0.85f, headY + headRadius * 0.8f); // Top right
-                        glVertex2f(headRadius * 1.0f, headY - headRadius * 0.3f); // Bottom right
-                        glVertex2f(headRadius * 0.8f, headY - headRadius * 0.3f); // Bottom left
-                        glEnd();
-                    }
-                }
-                break;
-
-            case HairStyle::Bald:
-                // Just the skin-colored head is drawn by default (no additional hair drawing needed).
-                break;
-        }
-
-                // 2. Eyes
-        if (direction != 2) {
-            glColor3f(0.0f, 0.0f, 0.0f);
-            if (direction == 3) { // Front
-                drawCircle(-0.012f, headY + 0.01f, 0.005f, 20);
-                drawCircle( 0.012f, headY + 0.01f, 0.005f, 20);
-                drawLine(-0.01f, headY - 0.015f, 0.01f, headY - 0.015f, 2.0f);
-            } else { // Side
-                drawCircle(-0.015f, headY + 0.005f, 0.004f, 20);
-                //nose
-                glColor3f(skinColor.r, skinColor.g, skinColor.b);
-                glBegin(GL_POLYGON);
-                    glVertex2f(-headRadius, headY); 
-                    glVertex2f(-headRadius, headY - 0.01f); 
-                    glVertex2f(-headRadius - 0.01f, headY - 0.005f);
-                glEnd();
-                //mouth
-                glColor3f(0.0f, 0.0f, 0.0f);
-                drawLine(-0.015f, headY - 0.01f, -0.03f, headY - 0.01f, 2.0f);
-            }
-        }
-
-        // --- Right Arm ---
-        glColor3f(skinColor.r, skinColor.g, skinColor.b); // Skin
-        glPushMatrix();
-        glTranslatef(-shoulderX, shoulderY, 0.0f);
-        glRotatef(armAngle, 0, 0, 1);
-        drawLine(0, 0, 0, -0.08f);
-        glTranslatef(0, -0.08f, 0);
-        glRotatef(-30.0f, 0, 0, 1);
-        drawLine(0, 0, 0, -0.07f);
-        drawCircle(0, -0.075f, 0.015f);
-        glPopMatrix();
-
-        glPopMatrix(); // End of man's transformation
-
-        // Draw bounding box if debug is enabled
-        if (DEBUG_drawBoundingBoxes) {
-            Rect b = getBounds();
-            glColor3f(1.0f, 1.0f, 0.0f); // Yellow for human bounding box
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-            // Add label for human bounding box
-            glColor3f(1.0f, 1.0f, 0.0f);
-            drawText(b.x, b.y + b.h + 5, "Human Bounding Box", 0.5f);
-        }
-    }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 struct Car
@@ -746,6 +316,236 @@ struct Car
     Rect getBounds() const { return {x, y, width, height}; }
 };
 
+
+
+enum class HumanState
+{
+    WALKING_ON_SIDEWALK,
+    WAITING_AT_CROSSING_EDGE,
+    CROSSING_ROAD,
+    REACHED_OTHER_SIDEWALK,
+    WALKING_AWAY_ON_SIDEWALK,
+    DESPAWNED
+};
+
+struct Human
+{
+    float x, y;
+    float targetX, currentSidewalkY;
+    bool onBottomSidewalkInitially;
+    bool willCrossRoad;
+    HumanState state;
+    int animationFrame;
+    int animationTimer;
+    float visualWidth, visualHeight;
+    float speedFactor;
+
+
+    Human(bool startsOnBottomSidewalk) : animationFrame(0), animationTimer(0),
+                                         visualWidth(10.0f), visualHeight(40.0f)
+    {
+        speedFactor = 0.85f + (rand() % 31) / 100.0f;
+        onBottomSidewalkInitially = startsOnBottomSidewalk;
+        willCrossRoad = (rand() % 3) == 0;  // 1/3 chance to cross the road
+        state = HumanState::WALKING_ON_SIDEWALK;
+        if (startsOnBottomSidewalk)
+            currentSidewalkY = (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f;
+        else
+            currentSidewalkY = (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f;
+        y = currentSidewalkY;
+        
+        // If not crossing, set target to opposite side of screen
+        if (!willCrossRoad) {
+            targetX = (rand() % 2 == 0) ? -visualWidth * 2 : WINDOW_WIDTH + visualWidth * 2;
+        } else {
+            targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
+        }
+        
+        if (rand() % 2 == 0)
+            x = (float)(rand() % (int)(targetX - 50.0f));
+        else
+            x = targetX + 50.0f + (float)(rand() % (int)(WINDOW_WIDTH - (targetX + 50.0f)));
+        if (x < visualWidth / 2.0f)
+            x = visualWidth / 2.0f + 20.f;
+        if (x > WINDOW_WIDTH - visualWidth / 2.0f)
+            x = WINDOW_WIDTH - visualWidth / 2.0f - 20.f;
+    }
+
+
+    void update()
+    {
+        float effectiveSpeed = USER_HUMAN_SPEED * speedFactor;
+        bool isMoving = false;
+
+        switch (state)
+        {
+        case HumanState::WALKING_ON_SIDEWALK:
+            isMoving = true;
+            y = currentSidewalkY;
+            effectiveSpeed *= USER_HUMAN_SIDEWALK_SPEED_FACTOR;
+            if (fabs(x - targetX) < effectiveSpeed * 1.5f)
+            {
+                x = targetX;
+                if (willCrossRoad) {
+                    state = HumanState::WAITING_AT_CROSSING_EDGE;
+                } else {
+                    state = HumanState::DESPAWNED;  // If not crossing, despawn when reaching target
+                }
+            }
+            else if (x < targetX)
+                x += effectiveSpeed;
+            else
+                x -= effectiveSpeed;
+            break;
+        case HumanState::WAITING_AT_CROSSING_EDGE:
+            if (pedestrianLightState == PedestrianLightState::WALK && !yellowLightOn)
+                state = HumanState::CROSSING_ROAD;
+            break;
+        case HumanState::CROSSING_ROAD:
+            isMoving = true;
+            if (onBottomSidewalkInitially)
+            {
+                y += effectiveSpeed;
+                if (y >= (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f)
+                {
+                    y = (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f;
+                    currentSidewalkY = y;
+                    state = HumanState::REACHED_OTHER_SIDEWALK;
+                }
+            }
+            else
+            {
+                y -= effectiveSpeed;
+                if (y <= (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f)
+                {
+                    y = (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f;
+                    currentSidewalkY = y;
+                    state = HumanState::REACHED_OTHER_SIDEWALK;
+                }
+            }
+            break;
+        case HumanState::REACHED_OTHER_SIDEWALK:
+            targetX = (x < WINDOW_WIDTH / 2) ? -visualWidth * 2 : WINDOW_WIDTH + visualWidth * 2;
+            state = HumanState::WALKING_AWAY_ON_SIDEWALK;
+            break;
+        case HumanState::WALKING_AWAY_ON_SIDEWALK:
+            isMoving = true;
+            y = currentSidewalkY;
+            effectiveSpeed *= USER_HUMAN_SIDEWALK_SPEED_FACTOR;
+            if (fabs(x - targetX) < effectiveSpeed * 1.5f || (targetX < 0 && x < 0) || (targetX > WINDOW_WIDTH && x > WINDOW_WIDTH))
+            {
+                state = HumanState::DESPAWNED;
+            }
+            else if (x < targetX)
+                x += effectiveSpeed;
+            else
+                x -= effectiveSpeed;
+            break;
+        case HumanState::DESPAWNED:
+            break;
+        }
+
+
+        if (isMoving)
+        {
+            animationTimer++;
+            if (animationTimer >= HUMAN_ANIMATION_FRAME_DELAY)
+            {
+                animationFrame = (animationFrame + 1) % HUMAN_ANIMATION_MAX_FRAMES;
+                animationTimer = 0;
+            }
+        }
+        else
+        {
+            animationFrame = 0;
+        }
+    }
+
+
+    void draw() const
+    {
+        glColor3f(0.2f, 0.5f, 0.8f);
+        float bodyActualHeight = visualHeight * 0.55f;
+        float headRadius = visualHeight * 0.15f;
+        float legLength = visualHeight * 0.30f;
+        float hipY = y + legLength;
+        float torsoBottomY = y + legLength;
+        float torsoTopY = torsoBottomY + bodyActualHeight;
+        float shoulderY = torsoTopY - bodyActualHeight * 0.1f;
+        float headCenterY = torsoTopY + headRadius;
+        
+        // Draw head with different color based on willCrossRoad
+        if (willCrossRoad) {
+            glColor3f(0.2f, 0.5f, 0.8f);  // Original blue color
+        } else {
+            glColor3f(0.8f, 0.2f, 0.2f);  // Red color for non-crossing humans
+        }
+        drawCircle(x, headCenterY, headRadius);
+        
+        // Reset color for body
+        glColor3f(0.2f, 0.5f, 0.8f);
+        glBegin(GL_QUADS);                      /*Torso*/
+        glVertex2f(x - visualWidth * 0.2f, torsoBottomY);
+        glVertex2f(x + visualWidth * 0.2f, torsoBottomY);
+        glVertex2f(x + visualWidth * 0.2f, torsoTopY);
+        glVertex2f(x - visualWidth * 0.2f, torsoTopY);
+        glEnd();
+        glLineWidth(2.0f);
+        glBegin(GL_LINES); /*Limbs*/
+        bool pose1 = animationFrame < HUMAN_ANIMATION_MAX_FRAMES / 2;
+        if (pose1)
+        {
+            glVertex2f(x, hipY);
+            glVertex2f(x - legLength * 0.4f, y);
+            glVertex2f(x, hipY);
+            glVertex2f(x + legLength * 0.3f, y + legLength * 0.2f);
+            glVertex2f(x, shoulderY);
+            glVertex2f(x + visualWidth * 0.3f, shoulderY - bodyActualHeight * 0.2f);
+            glVertex2f(x, shoulderY);
+            glVertex2f(x - visualWidth * 0.3f, shoulderY + bodyActualHeight * 0.2f * 0.5f);
+        }
+        else
+        {
+            glVertex2f(x, hipY);
+            glVertex2f(x + legLength * 0.4f, y);
+            glVertex2f(x, hipY);
+            glVertex2f(x - legLength * 0.3f, y + legLength * 0.2f);
+            glVertex2f(x, shoulderY);
+            glVertex2f(x - visualWidth * 0.3f, shoulderY - bodyActualHeight * 0.2f);
+            glVertex2f(x, shoulderY);
+            glVertex2f(x + visualWidth * 0.3f, shoulderY + bodyActualHeight * 0.2f * 0.5f);
+        }
+        glEnd();
+        glLineWidth(1.0f);
+
+        if (DEBUG_drawBoundingBoxes)
+        {
+            Rect b = getBounds();
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+            // Add label for human bounding box
+            glColor3f(0.0f, 1.0f, 0.0f);
+            std::string stateText = "Human: ";
+            switch(state) {
+                case HumanState::WALKING_ON_SIDEWALK: stateText += "Walking"; break;
+                case HumanState::WAITING_AT_CROSSING_EDGE: stateText += "Waiting at Crossing"; break;
+                case HumanState::CROSSING_ROAD: stateText += "Crossing Road"; break;
+                case HumanState::REACHED_OTHER_SIDEWALK: stateText += "Reached Sidewalk"; break;
+                case HumanState::WALKING_AWAY_ON_SIDEWALK: stateText += "Walking Away"; break;
+                case HumanState::DESPAWNED: stateText += "Despawned"; break;
+            }
+            drawText(b.x, b.y + b.h + 5, stateText.c_str(), 0.5f);
+        }
+    }
+
+    Rect getBounds() const { return {x - visualWidth / 2.0f, y, visualWidth, visualHeight}; }
+};
+
 // Add these global variables after the other global variables
 struct Cloud {
     float x, y;
@@ -895,6 +695,45 @@ void spawnNewCar()
     cars.emplace_back(spawnX, y, carW, carH, r, g, b);
     lastCarSpawnTime = timeNow();
 }
+
+
+void spawnNewHuman()
+{
+    if (activeHumans.size() >= MAX_ACTIVE_HUMANS) {
+        return;
+    }
+
+    if (lastHumanSpawnTime != 0 && lastHumanSpawnTime < MIN_TIME_BETWEEN_SPAWNS) {
+        return;
+    }
+
+    bool startsOnBottomSidewalk = rand() % 2 == 0;
+    bool comesFromLeft = rand() % 2 == 0;
+
+    float x = comesFromLeft ? -100.0f - (rand() % 50) : (WINDOW_WIDTH + 100.0f + (rand() % 50));
+    float y = startsOnBottomSidewalk ? (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f : (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f;
+
+    Human ped(startsOnBottomSidewalk);
+    ped.x = x;
+    ped.y = y;
+    ped.currentSidewalkY = y;
+
+    // Only set targetX to crossing if the human will cross the road
+    if (ped.willCrossRoad) {
+        if (comesFromLeft) {
+            ped.targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2));
+        } else {
+            ped.targetX = HUMAN_CROSSING_CENTER_X - (rand() % (int)(HUMAN_CROSSING_WIDTH / 2));
+        }
+    }
+
+    activeHumans.push_back(ped);
+
+    lastHumanSpawnTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+}
+
 
 
 void drawRoadAndSidewalks()
@@ -1516,64 +1355,6 @@ void drawSceneObjects() {
     drawStreetLamp(950, SIDEWALK_BOTTOM_Y_START);
 }
 
-
-void spawnNewHuman() {
-    // Define some colors for variety
-    Color shirtColors[] = {
-        {0.8f, 0.2f, 0.2f},  // Red
-        {0.1f, 0.5f, 0.5f},  // Teal
-        {0.2f, 0.2f, 0.8f},  // Blue
-        {0.8f, 0.8f, 0.2f}   // Yellow
-    };
-    
-    Color pantsColors[] = {
-        {0.1f, 0.2f, 0.5f},  // Dark Blue
-        {0.1f, 0.1f, 0.1f},  // Black
-        {0.3f, 0.2f, 0.1f},  // Brown
-        {0.2f, 0.2f, 0.2f}   // Dark Gray
-    };
-    
-    Color skinColors[] = {
-        {0.9f, 0.8f, 0.7f},  // Light
-        {0.9f, 0.7f, 0.5f},  // Medium
-        {0.4f, 0.3f, 0.07f}  // Dark
-    };
-    
-    Color hairColors[] = {
-        {0.4f, 0.2f, 0.1f},  // Brown
-        {0.1f, 0.1f, 0.1f},  // Black
-        {0.8f, 0.7f, 0.5f}   // Blonde
-    };
-    
-    HairStyle styles[] = {
-        HairStyle::Spiky,
-        HairStyle::FlatTop,
-        HairStyle::Bald
-    };
-
-    // Randomly select colors and style
-    Color shirt = shirtColors[rand() % 4];
-    Color pants = pantsColors[rand() % 4];
-    Color skin = skinColors[rand() % 3];
-    Color hair = hairColors[rand() % 3];
-    HairStyle style = styles[rand() % 3];
-
-    // Randomly choose which sidewalk to spawn on
-    bool spawnOnTopSidewalk = (rand() % 2) == 0;
-    float y = spawnOnTopSidewalk ? 
-        SIDEWALK_TOP_Y_START + (rand() % 20) : 
-        SIDEWALK_BOTTOM_Y_START - (rand() % 20);
-
-    // Spawn from left side of screen
-    float x = -50.0f - (rand() % 100);
-
-    // Create and add the new human
-    Man newHuman(x, y, USER_HUMAN_SPEED, shirt, pants, skin, hair, style);
-    newHuman.willCrossRoad = (rand() % 2) == 0; // Randomly set willCrossRoad to true or false
-    activeHumans.push_back(newHuman);
-}
-
-
 void transition() {
     // Base colors for different times of day
     float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;    // Bright blue sky
@@ -1793,24 +1574,21 @@ void updateCars() {
 }
 
 void updateHumans() {
-    // Spawn new humans if needed
-    if (activeHumans.size() < MAX_ACTIVE_HUMANS && rand() % HUMAN_SPAWN_RATE_SIDEWALK == 0) {
+
+    if (activeHumans.size() < MAX_ACTIVE_HUMANS && rand() % HUMAN_SPAWN_RATE_SIDEWALK == 0 )
+    {
         spawnNewHuman();
     }
 
-    // Update all humans
-    for (auto& p : activeHumans) {
+    for (auto &p : activeHumans) {
         p.update();
+        activeHumans.erase(
+            std::remove_if(activeHumans.begin(), activeHumans.end(),
+                [](const Human &p) { 
+                    return p.state == HumanState::DESPAWNED; 
+                }),
+        activeHumans.end());
     }
-
-    // Remove despawned humans
-    activeHumans.erase(
-        std::remove_if(activeHumans.begin(), activeHumans.end(),
-            [](const Man& p) { 
-                return p.state == HumanState::DESPAWNED; 
-            }),
-        activeHumans.end()
-    );
 }
 
 void updateDayNight() {
@@ -1869,7 +1647,6 @@ static std::function<void()> g_pendingCallback = nullptr;
 
 void timerCallback(int value) {
     yellowLightOn = false;  // turn off yellow light after delay
-    std::cout << "timerCallback: yellowLightOn set to FALSE." << std::endl;
     std::cout << "Transition delay completed." << std::endl;
     if (g_pendingCallback) {
         g_pendingCallback();  // call the stored function
@@ -1899,14 +1676,10 @@ bool areHumansOnRoad() {
 
 // Add this function to check if any cars are near the crossing
 bool areCarsNearCrossing() {
-    Rect crossingAreaBounds = {HUMAN_CROSSING_X_START, ROAD_Y_BOTTOM, HUMAN_CROSSING_WIDTH, ROAD_Y_TOP - ROAD_Y_BOTTOM};
     for (const auto& car : cars) {
-        // Only consider cars that have passed the stop line
-        if (car.x + car.width > CAR_STOP_LINE_X + 5.0f) { // Added a small buffer for the stop line
-            Rect carCollisionBounds = {car.x - 5.0f, car.y, car.width + 10.0f, car.height};
-            if (checkAABBCollision(carCollisionBounds, crossingAreaBounds)) {
-                return true;
-            }
+        if (car.x + car.width > HUMAN_CROSSING_X_START - 50.0f && 
+            car.x < HUMAN_CROSSING_X_START + HUMAN_CROSSING_WIDTH + 50.0f) {
+            return true;
         }
     }
     return false;
@@ -1954,13 +1727,9 @@ void updateTrafficLights() {
     bool isWaiting = areHumansWaitingToCross();
     bool isCrossing = areHumansCrossing();
     
-    std::cout << "--- updateTrafficLights() ---" << std::endl;
-    std::cout << "isWaiting: " << isWaiting << ", isCrossing: " << isCrossing << ", yellowLightOn: " << yellowLightOn << ", mainTrafficLightState: " << (mainTrafficLightState == TrafficLightState::GREEN ? "GREEN" : "RED") << ", pedestrianLightState: " << (pedestrianLightState == PedestrianLightState::WALK ? "WALK" : "DONT_WALK") << std::endl;
-
     // If humans are waiting and we're not already in the process of changing
     if (isWaiting && !wasWaiting && !yellowLightOn) {
         if (mainTrafficLightState == TrafficLightState::GREEN) {
-            std::cout << "TrafficLights: Humans waiting, turning yellow, then red." << std::endl;
             yellowLightOn = true;
             showTransitionDelay(showRedLight, 1000);
         }
@@ -1969,7 +1738,6 @@ void updateTrafficLights() {
     // If no humans are crossing and we were previously crossing
     if (!isCrossing && wasCrossing && !yellowLightOn) {
         if (mainTrafficLightState == TrafficLightState::RED) {
-            std::cout << "TrafficLights: No humans crossing, turning yellow, then green." << std::endl;
             yellowLightOn = true;
             showTransitionDelay(showGreenLight, 1000);
         }
@@ -1977,7 +1745,6 @@ void updateTrafficLights() {
     
     wasWaiting = isWaiting;
     wasCrossing = isCrossing;
-    std::cout << "-----------------------------" << std::endl;
 }
 
 // Modify the updateScene function
@@ -2000,6 +1767,7 @@ void timer(int)
     glutPostRedisplay();
     glutTimerFunc(1000 / 60, timer, 0);
 }
+
 void keyboard(unsigned char key, int x, int y)
 {
     switch (key)
@@ -2062,6 +1830,7 @@ void reshape(int w, int h)
 }
 
 void transitionToScene4() { std::cout << "Transitioning to Scene 4..." << std::endl; }
+
 
 int main(int argc, char **argv)
 {
