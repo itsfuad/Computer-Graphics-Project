@@ -155,7 +155,7 @@ public:
         const float torsoTop = 0.1f, torsoBottom = -0.05f, torsoWidth = 0.08f;
         const float headRadius = 0.04f, neckY = torsoTop, headY = neckY + headRadius;
         const float shoulderY = torsoTop - 0.02f, shoulderX = torsoWidth / 2;
-        const float hipY = torsoBottom, hipX = torsoWidth / 3;
+        const float hipY = torsoBottom, hipX = torsoWidth / 4;
 
         // --- ARMS ---
         glColor3f(skinColor.r, skinColor.g, skinColor.b);
@@ -175,28 +175,28 @@ public:
         glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
         // Left Leg
         glPushMatrix();
-        glTranslatef(hipX, hipY, 0.0f);
+        glTranslatef(hipX + 0.01f, hipY + 0.02f, 0.0f);  // Moved up more
         if(direction == 0 || direction == 1) glRotatef(-legAngle, 0, 0, 1);
         else glTranslatef(0.0f, -legLift, 0.0f);
-        drawLine(0, 0, 0, -0.1f);
-        glTranslatef(0, -0.1f, 0);
+        drawLine(0, 0, 0, -0.13f);  // Increased to compensate for higher start
+        glTranslatef(0, -0.13f, 0);
         glRotatef(std::max(0.0f, -legAngle * 0.5f), 0, 0, 1);
-        drawLine(0, 0, 0, -0.05f);
+        drawLine(0, 0, 0, -0.06f);
         glColor3f(0.1f, 0.1f, 0.1f);
-        drawRectangle(-0.01f, -0.04f, 0.04f, 0.02f);
+        drawRectangle(-0.01f, -0.06f, 0.04f, 0.02f);  // Moved down from -0.04f to -0.06f
         glPopMatrix();
         // Right Leg
         glPushMatrix();
         glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        glTranslatef(-hipX, hipY, 0.0f);
+        glTranslatef(-hipX - 0.01f, hipY + 0.02f, 0.0f);  // Moved up more
         if(direction == 0 || direction == 1) glRotatef(legAngle, 0, 0, 1);
         else glTranslatef(0.0f, legLift, 0.0f);
-        drawLine(0, 0, 0, -0.1f);
-        glTranslatef(0, -0.1f, 0);
+        drawLine(0, 0, 0, -0.13f);  // Increased to compensate for higher start
+        glTranslatef(0, -0.13f, 0);
         glRotatef(std::max(0.0f, legAngle * 0.5f), 0, 0, 1);
-        drawLine(0, 0, 0, -0.05f);
+        drawLine(0, 0, 0, -0.06f);
         glColor3f(0.1f, 0.1f, 0.1f);
-        drawRectangle(-0.01f, -0.04f, 0.04f, 0.02f);
+        drawRectangle(-0.01f, -0.06f, 0.04f, 0.02f);  // Moved down from -0.04f to -0.06f
         glPopMatrix();
         glPopMatrix();
 
@@ -206,11 +206,16 @@ public:
 
         // --- PANT TOP ---
         glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
-        glBegin(GL_QUADS);
-        glVertex2f(-torsoWidth/2 + 0.002, hipY - 0.03); // Bottom left
-        glVertex2f(torsoWidth/2 - 0.002, hipY - 0.03);  // Bottom right
-        glVertex2f(torsoWidth/2, hipY + 0.01f); // Top right
-        glVertex2f(-torsoWidth/2, hipY + 0.01f); // Top left
+        glBegin(GL_TRIANGLE_FAN);
+        // Center point at the top
+        glVertex2f(0.0f, hipY + 0.01f);
+        // Draw the arc from left to right
+        for(int i = 0; i <= 180; i += 10) {
+            float angle = i * M_PI / 180.0f;
+            float x = ((torsoWidth + 0.005)/2 - 0.002) * cos(angle);
+            float y = hipY + 0.01f - ((torsoWidth + 0.005)/2 - 0.002) * sin(angle);
+            glVertex2f(x, y);
+        }
         glEnd();
 
          // --- HEAD, FACE, and HAIR ---
