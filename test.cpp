@@ -1694,11 +1694,11 @@ void drawSceneObjects() {
     }
 
     // Add trees as objects (replace drawTree calls)
-    drawableObjects.push_back(std::make_shared<BasicTree>(180, SIDEWALK_TOP_Y_START + 30));
-    drawableObjects.push_back(std::make_shared<PineTree>(500, SIDEWALK_TOP_Y_START + 30));
-    drawableObjects.push_back(std::make_shared<PineTree>(700, SIDEWALK_TOP_Y_START + 30));
-    drawableObjects.push_back(std::make_shared<BasicTree>(850, SIDEWALK_BOTTOM_Y_START));
-    drawableObjects.push_back(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START));
+    drawableObjects.push_back(std::make_shared<BasicTree>(180, SIDEWALK_TOP_Y_START + 28));  // -2 from original
+    drawableObjects.push_back(std::make_shared<PineTree>(500, SIDEWALK_TOP_Y_START + 28));   // -2 from original
+    drawableObjects.push_back(std::make_shared<PineTree>(700, SIDEWALK_TOP_Y_START + 28));   // -2 from original
+    drawableObjects.push_back(std::make_shared<BasicTree>(850, SIDEWALK_BOTTOM_Y_START - 2)); // -2 from original
+    drawableObjects.push_back(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START - 2));  // -2 from original
 
     // Add street lamps as objects
     drawableObjects.push_back(std::make_shared<StreetLamp>(80, SIDEWALK_TOP_Y_START));
@@ -1713,6 +1713,11 @@ void drawSceneObjects() {
     for (const auto& human : activeHumans) {
         drawableObjects.push_back(std::static_pointer_cast<Drawable>(human));
     }
+
+    //apply y-sorting
+    std::sort(drawableObjects.begin(), drawableObjects.end(), [](const auto& a, const auto& b) {
+        return a->y > b->y;
+    });
 
     // Draw all objects
     for (const auto& obj : drawableObjects) {
