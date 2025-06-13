@@ -684,11 +684,11 @@ public:
         glPopMatrix();
         glPopMatrix();
 
-        // Draw yellow debug bounding box in local (transformed) coordinates
+        // Draw yellow debug bounding box in world coordinates using getBounds()
         if (DEBUG_ON && !scenePaused) {
             Rect b = getBounds();
             glColor3f(1.0f, 1.0f, 0.0f);  // Yellow
-            drawBound(b.x, b.y, b.w, b.h);
+            drawBound(b.x, b.y, 25, 45, -13, -5);
         }
     }
 };
