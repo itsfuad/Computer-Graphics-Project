@@ -79,7 +79,7 @@ TrafficLightState mainTrafficLightState = TrafficLightState::GREEN;
 PedestrianLightState pedestrianLightState = PedestrianLightState::DONT_WALK;
 
 // Add these constants near the top with other constants
-const float CAR_PRIORITY_THRESHOLD = 300.0f;  // Distance to check for cars
+const float CAR_PRIORITY_THRESHOLD = 450.0f;  // Distance to check for cars
 const int MIN_CARS_FOR_PRIORITY = 3;         // Minimum cars to give them priority
 const int MIN_HUMANS_FOR_PRIORITY = 2;       // Minimum humans to give them priority
 
@@ -1607,6 +1607,16 @@ void drawRoadAndSidewalks()
     }
 }
 
+int countCarsNearCrossing() {
+    int count = 0;
+    for (const auto& v : vehicles) {
+        if (v->x < TRAFFIC_LIGHT_X && v->x > TRAFFIC_LIGHT_X - CAR_PRIORITY_THRESHOLD) {
+            count++;
+        }
+    }
+    return count;
+}
+
 void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_area_x_start, float crossing_area_width)
 {
     glColor3f(0.95f, 0.95f, 0.95f);
@@ -1633,19 +1643,29 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
         // Label for main crossing area
         glColor3f(1.0f, 0.0f, 1.0f);
         drawText(crossing_area_x_start, road_y_top + 10, "Main Crossing Area", 0.5f);
+        // Show human count
+        char humanCountText[64];
+        snprintf(humanCountText, sizeof(humanCountText), "Humans waiting: %d", HumansWaitingToCross());
+        drawText(crossing_area_x_start, road_y_top + 25, humanCountText, 0.5f);
 
         // Extended waiting area (20 units on each side)
         glColor3f(1.0f, 0.5f, 1.0f);  // Lighter magenta for extended area
-        drawBound(crossing_area_x_start - 20.0f, road_y_bottom, crossing_area_width + 40.0f, road_y_top - road_y_bottom);
+        drawBound(crossing_area_x_start - DISTANCE_TO_STOP_FROM_SIGNAL, road_y_bottom, crossing_area_width + DISTANCE_TO_STOP_FROM_SIGNAL * 2, road_y_top - road_y_bottom);
         // Label for extended waiting area
         glColor3f(1.0f, 0.5f, 1.0f);
-        drawText(crossing_area_x_start - 20.0f, road_y_top + 25, "Extended Waiting Area", 0.5f);
+        drawText(crossing_area_x_start - 20.0f, road_y_top + 40, "Extended Waiting Area", 0.5f);
+
         // Car priority area
         glColor3f(0.0f, 1.0f, 0.5f);  // Light green for car priority area
         drawBound(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_bottom, CAR_PRIORITY_THRESHOLD, road_y_top - road_y_bottom);
         // Label for car priority area
         glColor3f(0.0f, 1.0f, 0.5f);
-        drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 40, "Car Priority Area", 0.5f);
+        drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD / 2, road_y_top + 55, "Car Priority Area", 0.5f);
+        // Show car count
+        char carCountText[64];
+        snprintf(carCountText, sizeof(carCountText), "Cars in area: %d", countCarsNearCrossing());
+        glColor3f(0.0f, 1.0f, 0.5f);
+        drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 70, carCountText, 0.5f);
     }
 }
 
@@ -1878,15 +1898,6 @@ void showTransitionDelay(std::function<void()> callback, int delay) {
     glutTimerFunc(delay, timerCallback, 0);
 }
 
-int countCarsNearCrossing() {
-    int count = 0;
-    for (const auto& v : vehicles) {
-        if (v->x < TRAFFIC_LIGHT_X && v->x > TRAFFIC_LIGHT_X - CAR_PRIORITY_THRESHOLD) {
-            count++;
-        }
-    }
-    return count;
-}
 void updateTrafficLights() {
     bool isWaiting = HumansWaitingToCross() > 0;
     bool isCrossing = HumansCrossing() > 0;
