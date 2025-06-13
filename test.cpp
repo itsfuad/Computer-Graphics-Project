@@ -718,8 +718,7 @@ public:
     void honk() { if (!isHonking) { isHonking = true; honkTimer = 45; } }
     void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
 
-    bool update(const std::vector<std::shared_ptr<Vehicle>>& otherVehicles, 
-                const std::vector<std::shared_ptr<AdvancedHuman>>& humans) {
+    bool update() {
         float targetSpeed = USER_CAR_SPEED_BASE * speedFactor;
         current_speed = targetSpeed;
 
@@ -734,7 +733,7 @@ public:
 
         bool blockedByVehicleAhead = false;
         if (!stoppedByLight) {
-            for (const auto& v2 : otherVehicles) {
+            for (const auto& v2 : vehicles) {
                 if (this == v2.get()) continue;  // Skip self
                 if (fabs(y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD) {
                     if (v2->x > x) {
@@ -759,7 +758,7 @@ public:
             Rect crossingAreaCheck = {HUMAN_CROSSING_X_START - width / 2.0f, ROAD_Y_BOTTOM, HUMAN_CROSSING_WIDTH + width, ROAD_Y_TOP - ROAD_Y_BOTTOM};
 
             if (checkAABBCollision(vehicleNextBounds, crossingAreaCheck)) {
-                for (const auto& ped : humans) {
+                for (const auto& ped : activeHumans) {
                     if (ped->state == HumanState::CROSSING_ROAD) {
                         if (checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
                             blockedByHuman = true;
@@ -1500,7 +1499,7 @@ void spawnNewVehicle() {
 
 void updateVehicles() {
     for (size_t i = 0; i < vehicles.size(); ++i) {
-        if (vehicles[i]->update(vehicles, activeHumans)) {
+        if (vehicles[i]->update()) {
             vehicles.erase(vehicles.begin() + i);
             i--; // Decrement i to account for the erased element
         }
