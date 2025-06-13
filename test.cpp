@@ -9,11 +9,251 @@
 #include <chrono>
 #include <functional>
 #include <random>
+#include <AL/al.h>
+#include <AL/alc.h>
+#include <string>
+#include <unordered_map>
 
 // Define PI if not available
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// AudioManager class definition
+class AudioManager {
+private:
+    ALCdevice* device;
+    ALCcontext* context;
+    std::unordered_map<std::string, ALuint> buffers;
+    std::unordered_map<std::string, ALuint> sources;
+    bool isInitialized;
+
+    void cleanupSource(const std::string& name) {
+        if (sources.find(name) != sources.end()) {
+            alSourceStop(sources[name]);
+            alDeleteSources(1, &sources[name]);
+            sources.erase(name);
+        }
+    }
+
+public:
+    AudioManager() : device(nullptr), context(nullptr), isInitialized(false) {}
+
+    bool initialize() {
+        if (isInitialized) return true;
+
+        device = alcOpenDevice(nullptr);
+        if (!device) {
+            std::cerr << "Failed to open audio device" << std::endl;
+            return false;
+        }
+
+        context = alcCreateContext(device, nullptr);
+        if (!context) {
+            std::cerr << "Failed to create audio context" << std::endl;
+            alcCloseDevice(device);
+            return false;
+        }
+
+        alcMakeContextCurrent(context);
+        ALenum error = alGetError(); // Clear any previous error
+        if (error != AL_NO_ERROR) {
+            std::cerr << "OpenAL error after making context current: " << alGetString(error) << std::endl;
+        }
+        isInitialized = true;
+        std::cerr << "AudioManager initialized successfully." << std::endl;
+        return true;
+    }
+
+    bool loadSound(const std::string& name, const std::string& filePath) {
+        if (!isInitialized) return false;
+
+        ALuint buffer;
+        alGenBuffers(1, &buffer);
+        ALenum error = alGetError();
+        if (error != AL_NO_ERROR) {
+            std::cerr << "OpenAL error generating buffer: " << alGetString(error) << std::endl;
+            return false;
+        }
+
+        FILE* file = fopen(filePath.c_str(), "rb");
+        if (!file) {
+            std::cerr << "Failed to open sound file: " << filePath << std::endl;
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        char riffChunkID[4];
+        long riffChunkSize;
+        char waveFormat[4];
+        if (fread(riffChunkID, 1, 4, file) != 4 || memcmp("RIFF", riffChunkID, 4) != 0 ||
+            fread(&riffChunkSize, 4, 1, file) != 1 ||
+            fread(waveFormat, 1, 4, file) != 4 || memcmp("WAVE", waveFormat, 4) != 0) {
+            std::cerr << "Not a valid RIFF/WAVE file: " << filePath << std::endl;
+            fclose(file);
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        short audioFormat = 0;
+        short numChannels = 0;
+        int sampleRate = 0;
+        short bitsPerSample = 0;
+        int dataSize = 0;
+        ALenum format = 0;
+
+        while (!feof(file)) {
+            char chunkID[4];
+            int chunkSize;
+            if (fread(chunkID, 1, 4, file) != 4 || fread(&chunkSize, 4, 1, file) != 1) {
+                if (feof(file)) break; // Reached end of file cleanly
+                std::cerr << "Failed to read WAV chunk header for file: " << filePath << std::endl;
+                fclose(file);
+                alDeleteBuffers(1, &buffer);
+                return false;
+            }
+
+            if (memcmp("fmt ", chunkID, 4) == 0) {
+                if (chunkSize < 16) { // Minimum fmt chunk size is 16
+                    std::cerr << "WAV fmt chunk too small for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+                char fmtData[16]; // Only read first 16 bytes for essential info
+                if (fread(fmtData, 1, 16, file) != 16) {
+                    std::cerr << "Failed to read fmt data for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+                audioFormat = *(short*)&fmtData[0];
+                numChannels = *(short*)&fmtData[2];
+                sampleRate = *(int*)&fmtData[4];
+                bitsPerSample = *(short*)&fmtData[14];
+
+                // Determine OpenAL format
+                if (audioFormat != 1) { // PCM format
+                    std::cerr << "Unsupported WAV audio format (not PCM): " << audioFormat << " for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+
+                if (numChannels == 1 && bitsPerSample == 8) format = AL_FORMAT_MONO8;
+                else if (numChannels == 1 && bitsPerSample == 16) format = AL_FORMAT_MONO16;
+                else if (numChannels == 2 && bitsPerSample == 8) format = AL_FORMAT_STEREO8;
+                else if (numChannels == 2 && bitsPerSample == 16) format = AL_FORMAT_STEREO16;
+                else {
+                    std::cerr << "Unsupported WAV format: channels=" << numChannels << ", bits=" << bitsPerSample << " for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+                // Skip any extra bytes in fmt chunk if chunkSize > 16
+                if (chunkSize > 16) {
+                    fseek(file, chunkSize - 16, SEEK_CUR);
+                }
+            } else if (memcmp("data", chunkID, 4) == 0) {
+                dataSize = chunkSize;
+                break; // Found data chunk, stop searching for chunks
+            } else {
+                // Skip unknown chunk
+                fseek(file, chunkSize, SEEK_CUR);
+            }
+        }
+
+        if (format == 0 || dataSize == 0) {
+            std::cerr << "Missing or invalid 'fmt ' or 'data' chunk in WAV file: " << filePath << std::endl;
+            fclose(file);
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        std::vector<unsigned char> data(dataSize);
+        if (fread(data.data(), 1, dataSize, file) != dataSize) {
+            std::cerr << "Failed to read audio data from " << filePath << std::endl;
+            fclose(file);
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+        fclose(file);
+
+        std::cerr << "Loading " << name << " - Format: " << format << " (Channels: " << numChannels << ", Bits: " << bitsPerSample << "), Size: " << dataSize << ", Sample Rate: " << sampleRate << std::endl;
+
+        alBufferData(buffer, format, data.data(), dataSize, sampleRate);
+        error = alGetError();
+        if (error != AL_NO_ERROR) {
+            std::cerr << "Failed to buffer audio data from " << filePath << ": " << alGetString(error) << std::endl;
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        buffers[name] = buffer;
+        std::cerr << "Sound loaded successfully: " << name << " from " << filePath << std::endl;
+        return true;
+    }
+
+    void playSound(const std::string& name, bool loop = false) {
+        if (!isInitialized || buffers.find(name) == buffers.end()) return;
+
+        cleanupSource(name);
+
+        ALuint source;
+        alGenSources(1, &source);
+
+        alSourcei(source, AL_BUFFER, buffers[name]);
+        alSourcei(source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+        alSourcef(source, AL_GAIN, 0.5f);
+
+        alSourcePlay(source);
+        sources[name] = source;
+    }
+
+    void stopSound(const std::string& name) {
+        if (!isInitialized) return;
+        cleanupSource(name);
+    }
+
+    void setVolume(const std::string& name, float volume) {
+        if (!isInitialized || sources.find(name) == sources.end()) return;
+        alSourcef(sources[name], AL_GAIN, std::max(0.0f, std::min(1.0f, volume)));
+    }
+
+    bool isPlaying(const std::string& name) {
+        if (!isInitialized || sources.find(name) == sources.end()) return false;
+        ALint state;
+        alGetSourcei(sources[name], AL_SOURCE_STATE, &state);
+        return state == AL_PLAYING;
+    }
+
+    void cleanup() {
+        if (!isInitialized) return;
+
+        for (const auto& source : sources) {
+            alSourceStop(source.second);
+            alDeleteSources(1, &source.second);
+        }
+        sources.clear();
+
+        for (const auto& buffer : buffers) {
+            alDeleteBuffers(1, &buffer.second);
+        }
+        buffers.clear();
+
+        alcMakeContextCurrent(nullptr);
+        alcDestroyContext(context);
+        alcCloseDevice(device);
+        isInitialized = false;
+    }
+
+    ~AudioManager() {
+        cleanup();
+    }
+};
+
+// Global audio manager instance
+AudioManager audioManager;
 
 // ===================================================================
 //  Constants and Global Variables from Simulation
@@ -2013,6 +2253,15 @@ void keyboard(unsigned char key, int x, int y) {
                 isNight = true;
             }
             break;
+        case 'm':
+        case 'M':
+            // Toggle background traffic sound
+            if (audioManager.isPlaying("traffic")) {
+                audioManager.stopSound("traffic");
+            } else {
+                audioManager.playSound("traffic", true);
+            }
+            break;
         case 27: // ESC key
             // Cleanup
             vehicles.clear();
@@ -2076,6 +2325,17 @@ void init()
 
     // Initialize traffic signal - add it directly to drawableObjects
     drawableObjects.push_back(trafficSignal);
+
+    // Initialize audio system
+    if (!audioManager.initialize()) {
+        std::cerr << "Failed to initialize audio system" << std::endl;
+    } else {
+        // Load sounds - replace paths with your actual sound files
+        audioManager.loadSound("traffic", "D:/dev/OpenGL/man_walk/audio/traffic.wav"); // Use forward slashes or escaped backslashes
+        //audioManager.loadSound("honk", "path/to/honk.wav");
+        // Start playing background traffic sound
+        audioManager.playSound("traffic", true);  // true for looping
+    }
 }
 
 
@@ -2098,9 +2358,12 @@ int main(int argc, char **argv) {
     std::cout << "P: Pause/Play" << std::endl;
     std::cout << "D: Toggle Debug Bounding Boxes" << std::endl;
     std::cout << "N: Toggle Day/Night" << std::endl;
+    std::cout << "M: Toggle Background Traffic Sound" << std::endl;
     std::cout << "ESC: Exit" << std::endl;
     
     std::cout << "Entering main loop..." << std::endl;
     glutMainLoop();
+
+    audioManager.cleanup();
     return 0;
 }
