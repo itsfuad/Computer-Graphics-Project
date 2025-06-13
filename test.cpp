@@ -27,7 +27,7 @@ const int MIN_TIME_BETWEEN_SPAWNS_HUMAN = 15;
 const float USER_HUMAN_SIDEWALK_SPEED_FACTOR = 1.2f;
 const int HUMAN_SPAWN_RATE_SIDEWALK = 120;
 
-const int CAR_SPAWN_RATE = 400;
+const int CAR_SPAWN_RATE = 100;
 
 const int YELLOW_BLINK_INTERVAL = 15;  // Frames between yellow light blinks
 
@@ -104,8 +104,17 @@ struct Rect {
     float x, y, w, h;
 };
 
-// Forward declarations
-class Drawable;
+class Drawable {
+public:
+    float x, y, width, height;
+    Drawable(float _x, float _y, float _w, float _h) : x(_x), y(_y), width(_w), height(_h) {}
+    Rect getBounds() {
+        return {x, y, width, height};
+    }
+    virtual void draw() = 0;  // Pure virtual function
+    virtual ~Drawable() = default;
+};
+
 class Vehicle;
 class AdvancedHuman;
 
@@ -143,6 +152,13 @@ void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3) {
     glEnd();
 }
 
+bool checkAABBCollision(Rect r1, Rect r2) {
+    return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
+}
+int timeNow() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
 
 // ===================================================================
 //  NEW VEHICLE DRAWING FUNCTIONS
@@ -327,130 +343,20 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
     drawRect(x + width - 5, y + height * 0.25f, 4, 4);
 }
 
-// ===================================================================
-//  Vehicle Class (replaces Car)
-// ===================================================================
-class Vehicle {
-public:
-    float x, y, width, height, r, g, b, current_speed, speedFactor;
-    VehicleType type;
-    bool isHonking;
-    int honkTimer;
-
-    Vehicle(float _x, float _y, float _w, float _h, float _r, float _g, float _b, VehicleType _type)
-        : x(_x), y(_y), width(_w), height(_h), r(_r), g(_g), b(_b), type(_type),
-          isHonking(false), honkTimer(0), current_speed(0) {
-        speedFactor = 1.0f + (rand() % 41) / 100.0f;
-        current_speed = USER_CAR_SPEED_BASE * speedFactor;
-    }
-
-    virtual void draw() {
-        if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
-            glColor3f(0.0f, 1.0f, 0.0f);  // Green for bounding box
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-        }
-    }
-
-    void honk() { if (!isHonking) { isHonking = true; honkTimer = 45; } }
-    void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
-};
-
-
-// ===================================================================
-//  Car, Truck, Bus Classes (inherit from Vehicle)
-// ===================================================================
-class Car : public Vehicle {
-public:
-    Car(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::CAR) {}
-    void draw() override {
-        drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
-        if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
-            glColor3f(0.0f, 1.0f, 0.0f);
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-        }
-    }
-};
-
-class Truck : public Vehicle {
-public:
-    Truck(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::TRUCK) {}
-    void draw() override {
-        drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
-        if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
-            glColor3f(0.0f, 1.0f, 0.0f);
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-        }
-    }
-};
-
-class Bus : public Vehicle {
-public:
-    Bus(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::BUS) {}
-    void draw() override {
-        drawBus(x, y, width, height, r, g, b, isNight, current_speed);
-        if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
-            glColor3f(0.0f, 1.0f, 0.0f);
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-        }
-    }
-};
 
 // Global collections of scene objects
-std::vector<Vehicle*> vehicles; // Changed from Car
-std::vector<AdvancedHuman*> activeHumans; // Using pointers for the new complex human class
+std::vector<std::shared_ptr<Vehicle>> vehicles; // Changed from Car
+std::vector<std::shared_ptr<AdvancedHuman>> activeHumans; // Change the activeHumans vector declaration
+
+// Global vector to store all drawable objects
+std::vector<std::shared_ptr<Drawable>> drawableObjects;
 
 // ===================================================================
 //  AdvancedHuman Class (Merger of Man.cpp and Human struct)
 // ===================================================================
-class AdvancedHuman {
-private:
-    // --- Animation & Position State (from Man.cpp) ---
-    float x, y;
-    float walkCycle;
-    bool isWalking;
-    int direction;       // 0=right, 1=left, 2=up, 3=down
-
-    // --- Style properties ---
-    Color shirtColor;
-    Color pantsColor;
-    Color hairColor;
-    Color skinColor;
-    HairStyle hairStyle;
-    float scale; // Scale factor for drawing
-
+class AdvancedHuman : public Drawable {
 public:
-    // --- Simulation State (from old Human struct) ---
+    // Simulation state
     HumanState state;
     float targetX;
     float currentSidewalkY;
@@ -459,16 +365,38 @@ public:
     float speedFactor;
     float speed;
 
-    // --- Constructor ---
+    // Visual properties
+    Color shirtColor;
+    Color pantsColor;
+    Color hairColor;
+    Color skinColor;
+    HairStyle hairStyle;
+    float scale;
+
+    // Animation state
+    float walkCycle;
+    bool isWalking;
+    int direction;
+
     AdvancedHuman(float startX, float startY, float visualScale, const Color& shirt, const Color& pants, const Color& skin, const Color& hair, HairStyle style)
-    : x(startX), y(startY), scale(visualScale), shirtColor(shirt), pantsColor(pants), skinColor(skin), hairColor(hair), hairStyle(style)
-    {
-        walkCycle = 0.0f;
-        isWalking = false;
-        direction = 1; // Default to left
-        state = HumanState::WALKING_ON_SIDEWALK;
-        speedFactor = 0.85f + (rand() % 31) / 100.0f;
-        speed = USER_HUMAN_SPEED * speedFactor;
+        : Drawable(startX, startY, 20.0f, 40.0f),
+          state(HumanState::WALKING_ON_SIDEWALK),
+          targetX(0.0f),
+          currentSidewalkY(0.0f),
+          onBottomSidewalkInitially(false),
+          willCrossRoad(false),
+          speedFactor(1.0f),
+          speed(0.0f),
+          shirtColor(shirt),
+          pantsColor(pants),
+          hairColor(hair),
+          skinColor(skin),
+          hairStyle(style),
+          scale(visualScale),
+          walkCycle(0.0f),
+          isWalking(false),
+          direction(0) {
+        // Additional initialization if needed
     }
 
     // --- Control Methods ---
@@ -764,18 +692,173 @@ public:
             glLineWidth(1.0f);  // Reset line width
         }
     }
+};
 
-    Rect getBounds() const {
-        // Use dimensions that approximate the visual size for collision detection.
-        const float visualWidth = 20.0f;
-        const float visualHeight = 40.0f;
-        return {x - visualWidth / 2.0f, y, visualWidth, visualHeight};
+
+// ===================================================================
+//  Vehicle Class (replaces Car)
+// ===================================================================
+class Vehicle : public Drawable {
+public:
+    float r, g, b;
+    float speedFactor;
+    float current_speed;
+    bool isHonking;
+    int honkTimer;
+
+    Vehicle(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Drawable(_x, _y, _w, _h), r(_r), g(_g), b(_b), 
+          speedFactor(1.0f + (rand() % 41) / 100.0f),
+          current_speed(USER_CAR_SPEED_BASE * speedFactor),
+          isHonking(false), honkTimer(0) {}
+
+    virtual void draw() override = 0;
+    virtual ~Vehicle() = default;
+
+    void honk() { if (!isHonking) { isHonking = true; honkTimer = 45; } }
+    void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
+
+    bool update(const std::vector<std::shared_ptr<Vehicle>>& otherVehicles, 
+                const std::vector<std::shared_ptr<AdvancedHuman>>& humans) {
+        float targetSpeed = USER_CAR_SPEED_BASE * speedFactor;
+        current_speed = targetSpeed;
+
+        bool stoppedByLight = false;
+        if (mainTrafficLightState == TrafficLightState::RED || yellowLightOn) {
+            if (x + width < CAR_STOP_LINE_X + 5.0f &&
+                x + width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + width * 0.5f)) {
+                current_speed = 0;
+                stoppedByLight = true;
+            }
+        }
+
+        bool blockedByVehicleAhead = false;
+        if (!stoppedByLight) {
+            for (const auto& v2 : otherVehicles) {
+                if (this == v2.get()) continue;  // Skip self
+                if (fabs(y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD) {
+                    if (v2->x > x) {
+                        float distance = v2->x - (x + width);
+                        if (distance < MIN_CAR_SPACING_AHEAD) {
+                            if (v2->current_speed < current_speed) {
+                                current_speed = v2->current_speed;
+                            }
+                            if (distance < 2.0f || (v2->current_speed < 0.1f && distance < MIN_CAR_SPACING_AHEAD * 0.75f)) {
+                                current_speed = 0;
+                                blockedByVehicleAhead = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        bool blockedByHuman = false;
+        if (!stoppedByLight && !blockedByVehicleAhead) {
+            Rect vehicleNextBounds = {x + current_speed, y, width, height};
+            Rect crossingAreaCheck = {HUMAN_CROSSING_X_START - width / 2.0f, ROAD_Y_BOTTOM, HUMAN_CROSSING_WIDTH + width, ROAD_Y_TOP - ROAD_Y_BOTTOM};
+
+            if (checkAABBCollision(vehicleNextBounds, crossingAreaCheck)) {
+                for (const auto& ped : humans) {
+                    if (ped->state == HumanState::CROSSING_ROAD) {
+                        if (checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
+                            blockedByHuman = true;
+                            current_speed = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (stoppedByLight || blockedByVehicleAhead || blockedByHuman) {
+            current_speed = 0;
+        }
+
+        x += current_speed;
+        updateHonk();
+
+        // Return true if vehicle should be removed
+        return x > WINDOW_WIDTH + 100;
     }
 };
 
+
 // ===================================================================
-//  Car Struct and other functions from oldCode.cpp (largely unchanged)
+//  Car, Truck, Bus Classes (inherit from Vehicle)
 // ===================================================================
+class Car : public Vehicle {
+public:
+    Car(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b) {
+        // Cars maintain normal speed (speedFactor is already set in base class)
+    }
+
+    void draw() override {
+        drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+};
+
+class Truck : public Vehicle {
+public:
+    Truck(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b) {
+        // Trucks are 10% slower
+        speedFactor *= 0.9f;
+        current_speed = USER_CAR_SPEED_BASE * speedFactor;
+    }
+
+    void draw() override {
+        drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+};
+
+class Bus : public Vehicle {
+public:
+    Bus(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b) {
+        // Buses are 20% slower
+        speedFactor *= 0.8f;
+        current_speed = USER_CAR_SPEED_BASE * speedFactor;
+    }
+
+    void draw() override {
+        drawBus(x, y, width, height, r, g, b, isNight, current_speed);
+        if (DEBUG_ON && !scenePaused) {
+            Rect b = {x, y, width, height};
+            glColor3f(0.0f, 1.0f, 0.0f);
+            glLineWidth(1.0f);
+            glBegin(GL_LINE_LOOP);
+            glVertex2f(b.x, b.y);
+            glVertex2f(b.x + b.w, b.y);
+            glVertex2f(b.x + b.w, b.y + b.h);
+            glVertex2f(b.x, b.y + b.h);
+            glEnd();
+        }
+    }
+};
 
 // Prototypes for functions that are defined later
 void drawText(float x, float y, const char* text, float scale = 0.7f) {
@@ -799,7 +882,7 @@ struct Cloud {
 };
 unsigned short HumansWaitingToCross() {
     unsigned short count = 0;
-    for (auto* human : activeHumans) {
+    for (const auto& human : activeHumans) {
         if (human->state == HumanState::WAITING_AT_CROSSING_EDGE) {
             count++;
         }
@@ -809,7 +892,7 @@ unsigned short HumansWaitingToCross() {
 
 unsigned short HumansCrossing() {
     unsigned short count = 0;
-    for (auto* human : activeHumans) {
+    for (const auto& human : activeHumans) {
         if (human->state == HumanState::CROSSING_ROAD) {
             count++;
         }
@@ -832,13 +915,6 @@ struct Star {
 std::vector<Cloud> clouds;
 std::vector<Star> stars;
 
-bool checkAABBCollision(Rect r1, Rect r2) {
-    return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
-}
-int timeNow() {
-    using namespace std::chrono;
-    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-}
 
 // Add these new functions before the display() function
 void drawSun(float x, float y, float radius) {
@@ -928,109 +1004,135 @@ void drawStars() {
     }
 }
 
-void drawModernBuilding(float x, float y, float width, float height) {
-    // Main building
-    glColor3f(0.7f, 0.7f, 0.75f);
-    glBegin(GL_QUADS);
-    glVertex2f(x, y);
-    glVertex2f(x + width, y);
-    glVertex2f(x + width, y + height);
-    glVertex2f(x, y + height);
-    glEnd();
+class Building : public Drawable {
+    public:
+        Building(float _x, float _y, float _width, float _height) 
+            : Drawable(_x, _y, _width, _height) {}
+        virtual void draw() = 0;
+};
 
-    // Windows
-    glColor3f(0.9f, 0.9f, 0.95f);
-    float windowWidth = width * 0.15f;
-    float windowHeight = height * 0.1f;
-    float windowSpacing = width * 0.2f;
-    float windowRows = height * 0.15f;
-
-    for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
-        for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
+class ModernBuilding : public Building {
+    public:
+        ModernBuilding(float _x, float _y, float _width, float _height) 
+            : Building(_x, _y, _width, _height) {}
+        void draw() override {
+            // Main building
+            glColor3f(0.7f, 0.7f, 0.75f);
             glBegin(GL_QUADS);
-            glVertex2f(wx, wy);
-            glVertex2f(wx + windowWidth, wy);
-            glVertex2f(wx + windowWidth, wy + windowHeight);
-            glVertex2f(wx, wy + windowHeight);
+            glVertex2f(x, y);
+            glVertex2f(x + width, y);
+            glVertex2f(x + width, y + height);
+            glVertex2f(x, y + height);
+            glEnd();
+
+            // Windows
+            glColor3f(0.9f, 0.9f, 0.95f);
+            float windowWidth = width * 0.15f;
+            float windowHeight = height * 0.1f;
+            float windowSpacing = width * 0.2f;
+            float windowRows = height * 0.15f;
+
+            for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
+                for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
+                    glBegin(GL_QUADS);
+                    glVertex2f(wx, wy);
+                    glVertex2f(wx + windowWidth, wy);
+                    glVertex2f(wx + windowWidth, wy + windowHeight);
+                    glVertex2f(wx, wy + windowHeight);
+                    glEnd();
+                }
+            }
+        }
+};
+
+class ClassicBuilding : public Building {
+    public:
+        ClassicBuilding(float _x, float _y, float _width, float _height) 
+            : Building(_x, _y, _width, _height) {}
+
+        void draw() override {
+            // Main building
+            glColor3f(0.8f, 0.6f, 0.5f);
+            glBegin(GL_QUADS);
+            glVertex2f(x, y);
+            glVertex2f(x + width, y);
+            glVertex2f(x + width, y + height);
+            glVertex2f(x, y + height);
+            glEnd();
+
+            // Roof
+            glColor3f(0.5f, 0.3f, 0.2f);
+            glBegin(GL_TRIANGLES);
+            glVertex2f(x - width * 0.1f, y + height);
+            glVertex2f(x + width * 0.5f, y + height + height * 0.2f);
+            glVertex2f(x + width + width * 0.1f, y + height);
+            glEnd();
+
+            // Windows
+            glColor3f(0.9f, 0.9f, 0.7f);
+            float windowWidth = width * 0.2f;
+            float windowHeight = height * 0.15f;
+            float windowSpacing = width * 0.3f;
+            float windowRows = height * 0.2f;
+
+            for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
+                for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
+                    glBegin(GL_QUADS);
+                    glVertex2f(wx, wy);
+                    glVertex2f(wx + windowWidth, wy);
+                    glVertex2f(wx + windowWidth, wy + windowHeight);
+                    glVertex2f(wx, wy + windowHeight);
+                    glEnd();
+                }
+            }
+        }
+};
+
+class SkyScraper : public Building {
+    public:
+        SkyScraper(float _x, float _y, float _width, float _height) 
+            : Building(_x, _y, _width, _height) {}
+
+
+        void draw() {
+            // Main building
+            glColor3f(0.6f, 0.7f, 0.8f);
+            glBegin(GL_QUADS);
+            glVertex2f(x, y);
+            glVertex2f(x + width, y);
+            glVertex2f(x + width, y + height);
+            glVertex2f(x, y + height);
+            glEnd();
+
+            // Glass windows
+            glColor3f(0.8f, 0.9f, 1.0f);
+            float windowWidth = width * 0.1f;
+            float windowHeight = height * 0.05f;
+            float windowSpacing = width * 0.15f;
+            float windowRows = height * 0.08f;
+
+            for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
+                for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
+                    glBegin(GL_QUADS);
+                    glVertex2f(wx, wy);
+                    glVertex2f(wx + windowWidth, wy);
+                    glVertex2f(wx + windowWidth, wy + windowHeight);
+                    glVertex2f(wx, wy + windowHeight);
+                    glEnd();
+                }
+            }
+
+            // Antenna
+            glColor3f(0.3f, 0.3f, 0.3f);
+            glBegin(GL_QUADS);
+            glVertex2f(x + width * 0.45f, y + height);
+            glVertex2f(x + width * 0.55f, y + height);
+            glVertex2f(x + width * 0.55f, y + height + height * 0.1f);
+            glVertex2f(x + width * 0.45f, y + height + height * 0.1f);
             glEnd();
         }
-    }
-}
+};
 
-void drawClassicBuilding(float x, float y, float width, float height) {
-    // Main building
-    glColor3f(0.8f, 0.6f, 0.5f);
-    glBegin(GL_QUADS);
-    glVertex2f(x, y);
-    glVertex2f(x + width, y);
-    glVertex2f(x + width, y + height);
-    glVertex2f(x, y + height);
-    glEnd();
-
-    // Roof
-    glColor3f(0.5f, 0.3f, 0.2f);
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x - width * 0.1f, y + height);
-    glVertex2f(x + width * 0.5f, y + height + height * 0.2f);
-    glVertex2f(x + width + width * 0.1f, y + height);
-    glEnd();
-
-    // Windows
-    glColor3f(0.9f, 0.9f, 0.7f);
-    float windowWidth = width * 0.2f;
-    float windowHeight = height * 0.15f;
-    float windowSpacing = width * 0.3f;
-    float windowRows = height * 0.2f;
-
-    for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
-        for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
-            glBegin(GL_QUADS);
-            glVertex2f(wx, wy);
-            glVertex2f(wx + windowWidth, wy);
-            glVertex2f(wx + windowWidth, wy + windowHeight);
-            glVertex2f(wx, wy + windowHeight);
-            glEnd();
-        }
-    }
-}
-
-void drawSkyscraper(float x, float y, float width, float height) {
-    // Main building
-    glColor3f(0.6f, 0.7f, 0.8f);
-    glBegin(GL_QUADS);
-    glVertex2f(x, y);
-    glVertex2f(x + width, y);
-    glVertex2f(x + width, y + height);
-    glVertex2f(x, y + height);
-    glEnd();
-
-    // Glass windows
-    glColor3f(0.8f, 0.9f, 1.0f);
-    float windowWidth = width * 0.1f;
-    float windowHeight = height * 0.05f;
-    float windowSpacing = width * 0.15f;
-    float windowRows = height * 0.08f;
-
-    for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
-        for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
-            glBegin(GL_QUADS);
-            glVertex2f(wx, wy);
-            glVertex2f(wx + windowWidth, wy);
-            glVertex2f(wx + windowWidth, wy + windowHeight);
-            glVertex2f(wx, wy + windowHeight);
-            glEnd();
-        }
-    }
-
-    // Antenna
-    glColor3f(0.3f, 0.3f, 0.3f);
-    glBegin(GL_QUADS);
-    glVertex2f(x + width * 0.45f, y + height);
-    glVertex2f(x + width * 0.55f, y + height);
-    glVertex2f(x + width * 0.55f, y + height + height * 0.1f);
-    glVertex2f(x + width * 0.45f, y + height + height * 0.1f);
-    glEnd();
-}
 
 void drawGrass(float x, float y, float scale = 1.0f) {
     glColor3f(0.2f, 0.7f, 0.2f);
@@ -1353,7 +1455,7 @@ void spawnNewVehicle() {
 
     // Sort vehicles by lanes to prevent overlap
     std::sort(vehicles.begin(), vehicles.end(), 
-        [](const Vehicle* a, const Vehicle* b) {
+        [](const std::shared_ptr<Vehicle>& a, const std::shared_ptr<Vehicle>& b) {
             return a->y < b->y;  // Sort by y-coordinate (lane position)
         });
 
@@ -1367,101 +1469,41 @@ void spawnNewVehicle() {
         }
     }
 
-    Vehicle* newVehicle = nullptr;
-    if (type == VehicleType::CAR) newVehicle = new Car(spawnX, spawnY, spawnW, spawnH,
-        (rand() % 10) / 10.0f,
-        (rand() % 10) / 10.0f,
-        (rand() % 10) / 10.0f);
-    else if (type == VehicleType::TRUCK) newVehicle = new Truck(spawnX, spawnY, spawnW, spawnH,
-        (rand() % 10) / 10.0f,
-        (rand() % 10) / 10.0f,
-        (rand() % 10) / 10.0f);
-    else newVehicle = new Bus(spawnX, spawnY, spawnW, spawnH,
-        (rand() % 10) / 10.0f,
-        (rand() % 10) / 10.0f,
-        (rand() % 10) / 10.0f);
+    // Create a new vehicle
+    std::shared_ptr<Vehicle> newVehicle;
+    if (type == VehicleType::CAR) {
+        newVehicle = std::make_shared<Car>(spawnX, spawnY, spawnW, spawnH,
+            (rand() % 10) / 10.0f,
+            (rand() % 10) / 10.0f,
+            (rand() % 10) / 10.0f);
+    } else if (type == VehicleType::TRUCK) {
+        newVehicle = std::make_shared<Truck>(spawnX, spawnY, spawnW, spawnH,
+            (rand() % 10) / 10.0f,
+            (rand() % 10) / 10.0f,
+            (rand() % 10) / 10.0f);
+    } else {
+        newVehicle = std::make_shared<Bus>(spawnX, spawnY, spawnW, spawnH,
+            (rand() % 10) / 10.0f,
+            (rand() % 10) / 10.0f,
+            (rand() % 10) / 10.0f);
+    }
 
     if (newVehicle->r < 0.1f && newVehicle->g < 0.1f && newVehicle->b < 0.1f) {
-        newVehicle->r = 0.5f; // Avoid pure black
+        newVehicle->r = 0.2f;
+        newVehicle->g = 0.2f;
+        newVehicle->b = 0.2f;
     }
+
     vehicles.push_back(newVehicle);
 }
 
 
 void updateVehicles() {
     for (size_t i = 0; i < vehicles.size(); ++i) {
-        Vehicle* v1 = vehicles[i];
-        float targetSpeed = USER_CAR_SPEED_BASE * v1->speedFactor;
-        
-        // Buses and trucks are a bit slower
-        if (v1->type == VehicleType::BUS) targetSpeed *= 0.8f;
-        if (v1->type == VehicleType::TRUCK) targetSpeed *= 0.9f;
-
-        v1->current_speed = targetSpeed;
-
-        bool stoppedByLight = false;
-        if (mainTrafficLightState == TrafficLightState::RED || yellowLightOn) {
-            if (v1->x + v1->width < CAR_STOP_LINE_X + 5.0f &&
-                v1->x + v1->width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + v1->width * 0.5f)) {
-                v1->current_speed = 0;
-                stoppedByLight = true;
-            }
-        }
-
-        bool blockedByVehicleAhead = false;
-        if (!stoppedByLight) {
-            for (size_t j = 0; j < vehicles.size(); ++j) {
-                if (i == j) continue;
-                Vehicle* v2 = vehicles[j];
-                if (fabs(v1->y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD) {
-                    if (v2->x > v1->x) {
-                        float distance = v2->x - (v1->x + v1->width);
-                        if (distance < MIN_CAR_SPACING_AHEAD) {
-                            if (v2->current_speed < v1->current_speed) {
-                                v1->current_speed = v2->current_speed;
-                            }
-                            if (distance < 2.0f || (v2->current_speed < 0.1f && distance < MIN_CAR_SPACING_AHEAD * 0.75f)) {
-                                v1->current_speed = 0;
-                                blockedByVehicleAhead = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        bool blockedByHuman = false;
-        if (!stoppedByLight && !blockedByVehicleAhead) {
-            Rect vehicleNextBounds = {v1->x + v1->current_speed, v1->y, v1->width, v1->height};
-            Rect crossingAreaCheck = {HUMAN_CROSSING_X_START - v1->width / 2.0f, ROAD_Y_BOTTOM, HUMAN_CROSSING_WIDTH + v1->width, ROAD_Y_TOP - ROAD_Y_BOTTOM};
-
-            if (checkAABBCollision(vehicleNextBounds, crossingAreaCheck)) {
-                for (auto* ped : activeHumans) {
-                    if (ped->state == HumanState::CROSSING_ROAD) {
-                        if (checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
-                             blockedByHuman = true;
-                             v1->current_speed = 0;
-                             break;
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (stoppedByLight || blockedByVehicleAhead || blockedByHuman) {
-            v1->current_speed = 0;
-        }
-
-        v1->x += v1->current_speed;
-
-        // Cleanup vehicles that go off-screen
-        if (v1->x > WINDOW_WIDTH + 100) {
-            delete vehicles[i];
+        if (vehicles[i]->update(vehicles, activeHumans)) {
             vehicles.erase(vehicles.begin() + i);
             i--; // Decrement i to account for the erased element
-            continue;
         }
-        v1->updateHonk();
     }
 
     // Spawn new vehicles periodically
@@ -1500,26 +1542,26 @@ void drawBackgroundScenes() {
     // Draw stars
     drawStars();
 
-    // Draw buildings on the top side
-    float buildingY = SIDEWALK_TOP_Y_END;
+    // // Draw buildings on the top side
+    // float buildingY = SIDEWALK_TOP_Y_END;
 
-    // Modern building
-    drawModernBuilding(60.0f, buildingY, 80.0f, 120.0f);
+    // // Modern building
+    // drawModernBuilding(60.0f, buildingY, 80.0f, 120.0f);
 
-    // Classic building
-    drawClassicBuilding(180.0f, buildingY, 100.0f, 100.0f);
+    // // Classic building
+    // drawClassicBuilding(180.0f, buildingY, 100.0f, 100.0f);
 
-    // Skyscraper
-    drawSkyscraper(340.0f, buildingY, 60.0f, 180.0f);
+    // // Skyscraper
+    // drawSkyscraper(340.0f, buildingY, 60.0f, 180.0f);
 
-    // Another modern building
-    drawModernBuilding(460.0f, buildingY, 90.0f, 140.0f);
+    // // Another modern building
+    // drawModernBuilding(460.0f, buildingY, 90.0f, 140.0f);
 
-    // Another classic building
-    drawClassicBuilding(620.0f, buildingY, 110.0f, 110.0f);
+    // // Another classic building
+    // drawClassicBuilding(620.0f, buildingY, 110.0f, 110.0f);
 
-    // Another skyscraper
-    drawSkyscraper(840.0f, buildingY, 70.0f, 200.0f);
+    // // Another skyscraper
+    // drawSkyscraper(840.0f, buildingY, 70.0f, 200.0f);
 }
 
 
@@ -1645,41 +1687,44 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
 
 
 void drawSceneObjects() {
-    // Draw trees
-    drawTree(180, SIDEWALK_TOP_Y_START + 30, 0); // Regular tree
-    drawTree(500, SIDEWALK_TOP_Y_START + 30, 1); // Pine tree
-    drawTree(700, SIDEWALK_TOP_Y_START + 30, 1); // Pine tree
+    // Clear previous objects
+    drawableObjects.clear();
+    
+    // Create and add buildings
+    drawableObjects.push_back(std::make_unique<ModernBuilding>(60.0f, SIDEWALK_TOP_Y_END, 80.0f, 120.0f));
+    drawableObjects.push_back(std::make_unique<ClassicBuilding>(180.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f));
+    drawableObjects.push_back(std::make_unique<SkyScraper>(340.0f, SIDEWALK_TOP_Y_END, 60.0f, 180.0f));
+    drawableObjects.push_back(std::make_unique<ModernBuilding>(460.0f, SIDEWALK_TOP_Y_END, 90.0f, 140.0f));
+    drawableObjects.push_back(std::make_unique<ClassicBuilding>(620.0f, SIDEWALK_TOP_Y_END, 110.0f, 110.0f));
+    drawableObjects.push_back(std::make_unique<SkyScraper>(840.0f, SIDEWALK_TOP_Y_END, 70.0f, 200.0f));
 
-    // Draw street lamps
+    // Create and add vehicles
+    for (const auto& vehicle : vehicles) {
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(vehicle));
+    }
+
+    // Draw trees and street lamps (these are still drawn directly as they're not objects)
+    drawTree(180, SIDEWALK_TOP_Y_START + 30, 0);
+    drawTree(500, SIDEWALK_TOP_Y_START + 30, 1);
+    drawTree(700, SIDEWALK_TOP_Y_START + 30, 1);
     drawStreetLamp(80, SIDEWALK_TOP_Y_START);
     drawStreetLamp(380, SIDEWALK_TOP_Y_START);
     drawStreetLamp(780, SIDEWALK_TOP_Y_START);
+    drawTree(850, SIDEWALK_BOTTOM_Y_START, 0);
+    drawTree(300, SIDEWALK_BOTTOM_Y_START, 1);
+    drawStreetLamp(950, SIDEWALK_BOTTOM_Y_START);
 
     // Draw traffic signal
     drawTrafficSignal(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START, mainTrafficLightState);
 
-    for (const auto &v : vehicles) {
-        v->draw();
+    // Add humans to drawable objects
+    for (const auto& human : activeHumans) {
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(human));
     }
 
-    // Draw humans last (so they appear on top)
-    for (const auto &p : activeHumans) {
-        p->draw();
-    }
-
-    // Draw bottom trees and street lamp
-    drawTree(850, SIDEWALK_BOTTOM_Y_START, 0);   // Regular tree
-    drawTree(300, SIDEWALK_BOTTOM_Y_START, 1);   // Pine tree
-    drawStreetLamp(950, SIDEWALK_BOTTOM_Y_START);
-
-    if (DEBUG_ON && !scenePaused) {
-        std::cout << "\033[2K";  // Clear current line
-        std::cout << "\033[1A";  // Move up one line
-        std::cout << "\033[2K";  // Clear that line too
-        std::cout << "\033[2A";  // Move up two lines
-        std::cout << "\033[2K";  // Clear that line
-        std::cout << "Humans are waiting: " << HumansWaitingToCross() << std::endl;
-        std::cout << "Humans are crossing: " << HumansCrossing() << std::endl;
+    // Draw all objects
+    for (const auto& obj : drawableObjects) {
+        obj->draw();
     }
 }
 
@@ -1789,42 +1834,35 @@ void spawnNewHuman() {
     float startY = startsOnBottomSidewalk ? (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f : (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f;
     
     // Create and configure the new human
-    AdvancedHuman* ped = new AdvancedHuman(startX, startY, 100.0f, chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle);
+    std::shared_ptr<AdvancedHuman> newHuman = std::make_shared<AdvancedHuman>(
+        startX, startY, 100.0f,
+        chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle
+    );
     
-    ped->onBottomSidewalkInitially = startsOnBottomSidewalk;
-    ped->willCrossRoad = (rand() % 3) == 0;
-    ped->currentSidewalkY = startY;
+    newHuman->onBottomSidewalkInitially = startsOnBottomSidewalk;
+    newHuman->willCrossRoad = (rand() % 3) == 0;
+    newHuman->currentSidewalkY = startY;
 
-    if (!ped->willCrossRoad) {
-        ped->targetX = (startX < WINDOW_WIDTH / 2) ? WINDOW_WIDTH + 50.0f : -50.0f;
+    if (!newHuman->willCrossRoad) {
+        newHuman->targetX = (startX < WINDOW_WIDTH / 2) ? WINDOW_WIDTH + 50.0f : -50.0f;
     } else {
-        ped->targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
+        newHuman->targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
     }
     
-    activeHumans.push_back(ped);
+    activeHumans.push_back(newHuman);
     lastHumanSpawnTime = timeNow();
 }
 
 void updateHumans() {
-    if (activeHumans.size() < MAX_ACTIVE_HUMANS) {
-        spawnNewHuman();
+    for (size_t i = 0; i < activeHumans.size(); ++i) {
+        auto& human = activeHumans[i];
+        human->update();
+        
+        if (human->state == HumanState::DESPAWNED) {
+            activeHumans.erase(activeHumans.begin() + i);
+            i--; // Decrement i to account for the erased element
+        }
     }
-
-    for (auto* p : activeHumans) {
-        p->update();
-    }
-
-    // Erase despawned humans and free memory
-    activeHumans.erase(
-        std::remove_if(activeHumans.begin(), activeHumans.end(),
-            [](AdvancedHuman* p) { 
-                if (p->state == HumanState::DESPAWNED) {
-                    delete p; // Free the memory
-                    return true;
-                }
-                return false; 
-            }),
-        activeHumans.end());
 }
 
 void showGreenLight() {
@@ -1999,11 +2037,10 @@ void keyboard(unsigned char key, int x, int y) {
             }
             break;
         case 27: // ESC key
-            // Clean up dynamically allocated memory
-            for (auto* man : activeHumans) { delete man; }
-            for (auto* v : vehicles) { delete v; } // Changed from car
-            activeHumans.clear();
-            vehicles.clear(); // Changed from cars
+            // Cleanup
+            vehicles.clear();
+            activeHumans.clear();  // shared_ptr will handle deletion
+            drawableObjects.clear();
             exit(0);
             break;
     }
