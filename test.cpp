@@ -118,13 +118,19 @@ public:
 class Vehicle;
 class AdvancedHuman;
 
-void drawRect(float x, float y, float width, float height, float translateX = 0.0f, float translateY = 0.0f) {
-    glBegin(GL_QUADS);
+void drawRect(float x, float y, float width, float height, float translateX = 0.0f, float translateY = 0.0f, int type = GL_QUADS) {
+    glBegin(type);
     glVertex2f(x + translateX, y + translateY);
     glVertex2f(x + width + translateX, y + translateY);
     glVertex2f(x + width + translateX, y + height + translateY);
     glVertex2f(x + translateX, y + height + translateY);
     glEnd();
+}
+
+void drawBound(float x, float y, float width, float height, float translateX = 0.0f, float translateY = 0.0f) {
+    glLineWidth(2.0f);
+    drawRect(x, y, width, height, translateX, translateY, GL_LINE_LOOP);
+    glLineWidth(1.0f);
 }
 
 void drawLine(float x1, float y1, float x2, float y2, float thickness = 1.0f) {
@@ -379,14 +385,14 @@ public:
     int direction;
 
     AdvancedHuman(float startX, float startY, float visualScale, const Color& shirt, const Color& pants, const Color& skin, const Color& hair, HairStyle style)
-        : Drawable(startX, startY, 20.0f, 40.0f),
+        : Drawable(startX, startY, 0.2f, 0.4f),
           state(HumanState::WALKING_ON_SIDEWALK),
           targetX(0.0f),
           currentSidewalkY(0.0f),
           onBottomSidewalkInitially(false),
           willCrossRoad(false),
-          speedFactor(1.0f),
-          speed(0.0f),
+          speedFactor(1.0f + (rand() % 41) / 100.0f),  // Random factor between 1.0 and 1.4
+          speed(1.0f * speedFactor),  // Base speed of 1.0 multiplied by speed factor
           shirtColor(shirt),
           pantsColor(pants),
           hairColor(hair),
@@ -676,20 +682,13 @@ public:
         drawLine(0, 0, 0, -0.07f, 5.0f); // Explicitly set thickness
         drawCircle(0, -0.075f, 0.015f); // No change for hand circle
         glPopMatrix();
+        glPopMatrix();
 
-        glPopMatrix(); // End of man's transformation
-
+        // Draw yellow debug bounding box in local (transformed) coordinates
         if (DEBUG_ON && !scenePaused) {
             Rect b = getBounds();
-            glColor3f(1.0f, 0.0f, 1.0f);  // Magenta for human bounding box
-            glLineWidth(1.0f);  // Thinner line
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y); 
-            glVertex2f(b.x + b.w, b.y); 
-            glVertex2f(b.x + b.w, b.y + b.h); 
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
-            glLineWidth(1.0f);  // Reset line width
+            glColor3f(1.0f, 1.0f, 0.0f);  // Yellow
+            drawBound(b.x, b.y, b.w, b.h);
         }
     }
 };
@@ -796,15 +795,9 @@ public:
     void draw() override {
         drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
         if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
+            Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
+            drawBound(b.x, b.y, b.w, b.h);
         }
     }
 };
@@ -821,15 +814,9 @@ public:
     void draw() override {
         drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
         if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
+            Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
+            drawBound(b.x, b.y, b.w, b.h);
         }
     }
 };
@@ -846,15 +833,9 @@ public:
     void draw() override {
         drawBus(x, y, width, height, r, g, b, isNight, current_speed);
         if (DEBUG_ON && !scenePaused) {
-            Rect b = {x, y, width, height};
+            Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
-            glLineWidth(1.0f);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(b.x, b.y);
-            glVertex2f(b.x + b.w, b.y);
-            glVertex2f(b.x + b.w, b.y + b.h);
-            glVertex2f(b.x, b.y + b.h);
-            glEnd();
+            drawBound(b.x, b.y, b.w, b.h);
         }
     }
 };
@@ -1648,35 +1629,20 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
     if (DEBUG_ON && !scenePaused) {
         // Main crossing area
         glColor3f(1.0f, 0.0f, 1.0f);  // Magenta color for zebra crossing debug box
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(crossing_area_x_start, road_y_bottom);
-        glVertex2f(crossing_area_x_start + crossing_area_width, road_y_bottom);
-        glVertex2f(crossing_area_x_start + crossing_area_width, road_y_top);
-        glVertex2f(crossing_area_x_start, road_y_top);
-        glEnd();
+        drawBound(crossing_area_x_start, road_y_bottom, crossing_area_width, road_y_top - road_y_bottom);
         // Label for main crossing area
         glColor3f(1.0f, 0.0f, 1.0f);
         drawText(crossing_area_x_start, road_y_top + 10, "Main Crossing Area", 0.5f);
 
         // Extended waiting area (20 units on each side)
         glColor3f(1.0f, 0.5f, 1.0f);  // Lighter magenta for extended area
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(crossing_area_x_start - 20.0f, road_y_bottom);
-        glVertex2f(crossing_area_x_start + crossing_area_width + 20.0f, road_y_bottom);
-        glVertex2f(crossing_area_x_start + crossing_area_width + 20.0f, road_y_top);
-        glVertex2f(crossing_area_x_start - 20.0f, road_y_top);
-        glEnd();
+        drawBound(crossing_area_x_start - 20.0f, road_y_bottom, crossing_area_width + 40.0f, road_y_top - road_y_bottom);
         // Label for extended waiting area
         glColor3f(1.0f, 0.5f, 1.0f);
         drawText(crossing_area_x_start - 20.0f, road_y_top + 25, "Extended Waiting Area", 0.5f);
         // Car priority area
         glColor3f(0.0f, 1.0f, 0.5f);  // Light green for car priority area
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_bottom);
-        glVertex2f(crossing_area_x_start, road_y_bottom);
-        glVertex2f(crossing_area_x_start, road_y_top);
-        glVertex2f(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top);
-        glEnd();
+        drawBound(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_bottom, CAR_PRIORITY_THRESHOLD, road_y_top - road_y_bottom);
         // Label for car priority area
         glColor3f(0.0f, 1.0f, 0.5f);
         drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 40, "Car Priority Area", 0.5f);
@@ -1856,12 +1822,13 @@ void updateHumans() {
     for (size_t i = 0; i < activeHumans.size(); ++i) {
         auto& human = activeHumans[i];
         human->update();
-        
         if (human->state == HumanState::DESPAWNED) {
             activeHumans.erase(activeHumans.begin() + i);
             i--; // Decrement i to account for the erased element
         }
     }
+    // Periodically spawn new humans
+    spawnNewHuman();
 }
 
 void showGreenLight() {
