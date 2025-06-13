@@ -301,6 +301,7 @@ unsigned char frameCount = 0;
 // Scene State
 bool scenePaused = false;
 bool DEBUG_ON = false;
+bool backgroundMusicDesired = true;
 
 bool showWarningMessage = false;
 int lastCarSpawnTime = 0;
@@ -354,6 +355,7 @@ public:
 
 class Vehicle;
 class AdvancedHuman;
+class Building;
 
 // Prototypes for functions that are defined later
 void drawText(float x, float y, const char* text, float scale = 0.7f) {
@@ -637,6 +639,7 @@ struct Star {
 // Global collections of scene objects
 std::vector<std::shared_ptr<Vehicle>> vehicles; // Changed from Car
 std::vector<std::shared_ptr<AdvancedHuman>> activeHumans;
+std::vector<std::shared_ptr<Building>> backgroundBuildings;
 std::vector<std::shared_ptr<Drawable>> drawableObjects;  // Change back to shared_ptr
 std::vector<Cloud> clouds;
 std::vector<Star> stars;
@@ -1473,8 +1476,10 @@ void drawStars() {
     if (starAlpha > 0.0f) {
         for (auto& star : stars) {
             // Update blink phase
-            star.blinkPhase += 0.05f;
-            if (star.blinkPhase > 628.0f) star.blinkPhase -= 628.0f;
+            if (!scenePaused) { // Only update blink phase if scene is not paused
+                star.blinkPhase += 0.05f;
+                if (star.blinkPhase > 628.0f) star.blinkPhase -= 628.0f; // 2 * PI * 100 (approx)
+            }
 
             // Calculate blinking brightness
             float blinkFactor = 0.5f + 0.5f * sin(star.blinkPhase);
@@ -1488,135 +1493,223 @@ void drawStars() {
         }
     }
 }
+// ===================================================================
+//  NEW, DYNAMIC, AND DETAILED BUILDING CLASSES
+// ===================================================================
 
 class Building : public Drawable {
     public:
-        Building(float _x, float _y, float _width, float _height) 
+        Building(float _x, float _y, float _width, float _height)
             : Drawable(_x, _y, _width, _height) {}
+        
+        // Add a virtual update method to the base class
+        virtual void update(unsigned int frameCount) {
+            // Base implementation does nothing
+        }
+        
         virtual void draw() = 0;
 };
-class ModernBuilding : public Building {
-    public:
-        ModernBuilding(float _x, float _y, float _width, float _height) 
-            : Building(_x, _y, _width, _height) {}
-        void draw() override {
-            // Main building
-            glColor3f(0.7f, 0.7f, 0.75f);
-            glBegin(GL_QUADS);
-            glVertex2f(x, y);
-            glVertex2f(x + width, y);
-            glVertex2f(x + width, y + height);
-            glVertex2f(x, y + height);
-            glEnd();
-
-            // Windows
-            glColor3f(0.9f, 0.9f, 0.95f);
-            float windowWidth = width * 0.15f;
-            float windowHeight = height * 0.1f;
-            float windowSpacing = width * 0.2f;
-            float windowRows = height * 0.15f;
-
-            for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
-                for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
-                    glBegin(GL_QUADS);
-                    glVertex2f(wx, wy);
-                    glVertex2f(wx + windowWidth, wy);
-                    glVertex2f(wx + windowWidth, wy + windowHeight);
-                    glVertex2f(wx, wy + windowHeight);
-                    glEnd();
-                }
-            }
-        }
+// A new struct to manage the complex state of each window
+struct WindowState {
+    float brightness = 0.0f;  // 0.0 is unlit, 1.0 is fully lit
+    bool isLitTarget = false; // The state the window is trying to fade towards
 };
 
-class ClassicBuilding : public Building {
-    public:
-        ClassicBuilding(float _x, float _y, float _width, float _height) 
-            : Building(_x, _y, _width, _height) {}
+class BrickBuilding : public Building {
+private:
+    std::vector<WindowState> windowStates;
+    bool wasNightInternal = false; // Each building now tracks the day/night transition itself
+    int numWindowRows, numWindowCols;
 
-        void draw() override {
-            // Main building
-            glColor3f(0.8f, 0.6f, 0.5f);
-            glBegin(GL_QUADS);
-            glVertex2f(x, y);
-            glVertex2f(x + width, y);
-            glVertex2f(x + width, y + height);
-            glVertex2f(x, y + height);
-            glEnd();
+public:
+    BrickBuilding(float _x, float _y, float _width, float _height)
+        : Building(_x, _y, _width, _height) {
+        
+        numWindowRows = 3;
+        numWindowCols = 3;
+        windowStates.resize(numWindowRows * numWindowCols);
+    }
 
-            // Roof
-            glColor3f(0.5f, 0.3f, 0.2f);
-            glBegin(GL_TRIANGLES);
-            glVertex2f(x - width * 0.1f, y + height);
-            glVertex2f(x + width * 0.5f, y + height + height * 0.2f);
-            glVertex2f(x + width + width * 0.1f, y + height);
-            glEnd();
+    void update(unsigned int frameCount) override {
+        // --- State Transition Detection ---
+        bool transitionToNight = isNight && !wasNightInternal;
+        bool transitionToDay = !isNight && wasNightInternal;
+        wasNightInternal = isNight;
 
-            // Windows
-            glColor3f(0.9f, 0.9f, 0.7f);
-            float windowWidth = width * 0.2f;
-            float windowHeight = height * 0.15f;
-            float windowSpacing = width * 0.3f;
-            float windowRows = height * 0.2f;
-
-            for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
-                for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
-                    glBegin(GL_QUADS);
-                    glVertex2f(wx, wy);
-                    glVertex2f(wx + windowWidth, wy);
-                    glVertex2f(wx + windowWidth, wy + windowHeight);
-                    glVertex2f(wx, wy + windowHeight);
-                    glEnd();
-                }
+        if (transitionToNight) {
+            // A new night begins. Decide which lights will be ON.
+            for (auto& window : windowStates) {
+                window.isLitTarget = (rand() % 4 == 0); // 25% chance to be a target
+            }
+        } else if (transitionToDay) {
+            // Morning is here. All lights should begin turning OFF.
+            for (auto& window : windowStates) {
+                window.isLitTarget = false;
             }
         }
-};
 
-class SkyScraper : public Building {
-    public:
-        SkyScraper(float _x, float _y, float _width, float _height) 
-            : Building(_x, _y, _width, _height) {}
-
-
-        void draw() {
-            // Main building
-            glColor3f(0.6f, 0.7f, 0.8f);
-            glBegin(GL_QUADS);
-            glVertex2f(x, y);
-            glVertex2f(x + width, y);
-            glVertex2f(x + width, y + height);
-            glVertex2f(x, y + height);
-            glEnd();
-
-            // Glass windows
-            glColor3f(0.8f, 0.9f, 1.0f);
-            float windowWidth = width * 0.1f;
-            float windowHeight = height * 0.05f;
-            float windowSpacing = width * 0.15f;
-            float windowRows = height * 0.08f;
-
-            for (float wx = x + windowSpacing; wx < x + width - windowWidth; wx += windowSpacing) {
-                for (float wy = y + windowRows; wy < y + height - windowRows; wy += windowRows) {
-                    glBegin(GL_QUADS);
-                    glVertex2f(wx, wy);
-                    glVertex2f(wx + windowWidth, wy);
-                    glVertex2f(wx + windowWidth, wy + windowHeight);
-                    glVertex2f(wx, wy + windowHeight);
-                    glEnd();
-                }
+        // --- Dynamic Activity During The Night ---
+        if (isNight && frameCount % 15 == 0) { // Occasionally...
+            if (rand() % 5 == 0) { // ...there's a chance...
+                int index = rand() % windowStates.size();
+                // ...to toggle a window's target state.
+                windowStates[index].isLitTarget = !windowStates[index].isLitTarget;
             }
-
-            // Antenna
-            glColor3f(0.3f, 0.3f, 0.3f);
-            glBegin(GL_QUADS);
-            glVertex2f(x + width * 0.45f, y + height);
-            glVertex2f(x + width * 0.55f, y + height);
-            glVertex2f(x + width * 0.55f, y + height + height * 0.1f);
-            glVertex2f(x + width * 0.45f, y + height + height * 0.1f);
-            glEnd();
         }
+
+        // --- Smoothly Fade Brightness Towards Target ---
+        for (auto& window : windowStates) {
+            float targetBrightness = window.isLitTarget ? 1.0f : 0.0f;
+            window.brightness = targetBrightness; // Instantly set brightness
+        }
+    }
+
+    void draw() override {
+        // ... (The drawing code for the building structure is the same)
+        // --- Building Base ---
+        glColor3f(0.5f, 0.45f, 0.45f);
+        drawRect(x, y, width, 15);
+        // --- Main brick facade ---
+        glColor3f(0.7f, 0.35f, 0.3f);
+        drawRect(x, y + 15, width, height - 25);
+        // --- Brick texture lines ---
+        glColor4f(0.0f, 0.0f, 0.0f, 0.15f);
+        for(float lineY = y + 15; lineY < y + height - 10; lineY += 8) {
+            drawLine(x, lineY, x + width, lineY);
+        }
+        // --- Roof ---
+        glColor3f(0.3f, 0.2f, 0.2f);
+        drawRect(x - 5, y + height - 10, width + 10, 10);
+        
+        // --- NEW WINDOW DRAWING LOGIC ---
+        float windowWidth = 18.0f;
+        float windowHeight = 22.0f;
+        float w_gap = (width - (numWindowCols * windowWidth)) / (numWindowCols + 1);
+        float h_gap = (height - 35 - (numWindowRows * windowHeight)) / (numWindowRows + 1);
+
+        Color dayColor = {0.5f, 0.6f, 0.7f};
+        Color litColor = {1.0f, 0.95f, 0.75f};
+
+        int windowIndex = 0;
+        for (int row = 0; row < numWindowRows; ++row) {
+            for (int col = 0; col < numWindowCols; ++col) {
+                float wx = x + w_gap + col * (windowWidth + w_gap);
+                float wy = y + 25 + h_gap + row * (windowHeight + h_gap);
+                
+                // Sill
+                glColor3f(0.8f, 0.8f, 0.8f);
+                drawRect(wx-2, wy-2, windowWidth+4, 4);
+                
+                // Determine the base color for an unlit window
+                Color unlitBaseColor;
+                // The base color is always the reflective day color, even at night.
+                unlitBaseColor = dayColor;
+
+                // Interpolate between the unlit base color and the lit color
+                float r = unlitBaseColor.r + (litColor.r - unlitBaseColor.r) * windowStates[windowIndex].brightness;
+                float g = unlitBaseColor.g + (litColor.g - unlitBaseColor.g) * windowStates[windowIndex].brightness;
+                float b = unlitBaseColor.b + (litColor.b - unlitBaseColor.b) * windowStates[windowIndex].brightness;
+                
+                glColor3f(r, g, b);
+                drawRect(wx, wy, windowWidth, windowHeight);
+
+                windowIndex++;
+            }
+        }
+    }
 };
 
+class GlassSkyscraper : public Building {
+private:
+    std::vector<WindowState> windowStates;
+    bool wasNightInternal = false;
+    int numWindowRows, numWindowCols;
+
+public:
+    GlassSkyscraper(float _x, float _y, float _width, float _height)
+        : Building(_x, _y, _width, _height) {
+        
+        numWindowRows = 25;
+        numWindowCols = 5;
+        windowStates.resize(numWindowRows * numWindowCols);
+    }
+
+    void update(unsigned int frameCount) override {
+        bool transitionToNight = isNight && !wasNightInternal;
+        bool transitionToDay = !isNight && wasNightInternal;
+        wasNightInternal = isNight;
+
+        if (transitionToNight) {
+            for (auto& window : windowStates) {
+                window.isLitTarget = (rand() % 6 == 0);
+            }
+        } else if (transitionToDay) {
+            for (auto& window : windowStates) {
+                window.isLitTarget = false;
+            }
+        }
+        
+        if (isNight && frameCount % 10 == 0) {
+            if (rand() % 3 == 0) {
+                int index = rand() % windowStates.size();
+                windowStates[index].isLitTarget = !windowStates[index].isLitTarget;
+            }
+        }
+
+        for (auto& window : windowStates) {
+            float targetBrightness = window.isLitTarget ? 1.0f : 0.0f;
+            window.brightness = targetBrightness; // Instantly set brightness
+        }
+    }
+
+    void draw() override {
+        // ... (The drawing code for the building structure is the same)
+        glColor3f(0.3f, 0.35f, 0.4f);
+        drawRect(x, y, width, height);
+        glBegin(GL_QUADS);
+        glColor3f(0.5f, 0.6f, 0.7f);
+        glVertex2f(x + 5, y);
+        glVertex2f(x + width, y);
+        glColor3f(0.8f, 0.85f, 0.9f);
+        glVertex2f(x + width, y + height);
+        glVertex2f(x + 5, y + height);
+        glEnd();
+
+        // --- NEW WINDOW DRAWING LOGIC ---
+        float w_gap = 4.0f;
+        float h_gap = 4.0f;
+        float windowWidth = (width - 5 - (numWindowCols + 1) * w_gap) / numWindowCols;
+        float windowHeight = (height - (numWindowRows + 1) * h_gap) / numWindowRows;
+
+        Color dayColor = {0.8f, 0.85f, 0.9f}; // Reflective glass color
+        Color litColor = {1.0f, 1.0f, 0.9f};
+
+        int windowIndex = 0;
+        for (int row = 0; row < numWindowRows; ++row) {
+            for (int col = 0; col < numWindowCols; ++col) {
+                float wx = x + 5 + w_gap + col * (windowWidth + w_gap);
+                float wy = y + h_gap + row * (windowHeight + h_gap);
+                
+                // For glass skyscrapers, the unlit color is always the reflective day color.
+                // We just add light on top of it.
+                float r = dayColor.r + (litColor.r - dayColor.r) * windowStates[windowIndex].brightness;
+                float g = dayColor.g + (litColor.g - dayColor.g) * windowStates[windowIndex].brightness;
+                float b = dayColor.b + (litColor.b - dayColor.b) * windowStates[windowIndex].brightness;
+                
+                glColor3f(r, g, b);
+                drawRect(wx, wy, windowWidth, windowHeight);
+
+                windowIndex++;
+            }
+        }
+    }
+};
+
+void updateBuildings() {
+    for (auto& building : backgroundBuildings) {
+        building->update(frameCount);
+    }
+}
 
 void drawGrass(float x, float y, float scale = 1.0f) {
     glColor3f(0.2f, 0.7f, 0.2f);
@@ -2126,16 +2219,53 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
 
 
 void drawSceneObjects() {
-    // Clear previous objects
+    // Clear the drawable objects list
     drawableObjects.clear();
-    
-    // Create and add buildings
-    drawableObjects.push_back(std::make_shared<ModernBuilding>(60.0f, SIDEWALK_TOP_Y_END, 80.0f, 120.0f));
-    drawableObjects.push_back(std::make_shared<ClassicBuilding>(180.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f));
-    drawableObjects.push_back(std::make_shared<SkyScraper>(340.0f, SIDEWALK_TOP_Y_END, 60.0f, 180.0f));
-    drawableObjects.push_back(std::make_shared<ModernBuilding>(460.0f, SIDEWALK_TOP_Y_END, 90.0f, 140.0f));
-    drawableObjects.push_back(std::make_shared<ClassicBuilding>(620.0f, SIDEWALK_TOP_Y_END, 110.0f, 110.0f));
-    drawableObjects.push_back(std::make_shared<SkyScraper>(840.0f, SIDEWALK_TOP_Y_END, 70.0f, 200.0f));
+
+    // Static vector to store street lamps, initialized only once
+    static std::vector<std::shared_ptr<StreetLamp>> streetLamps;
+    static bool lampsInitialized = false;
+
+    // Initialize street lamps only once
+    if (!lampsInitialized) {
+        const int numLamps = 3; // Define N here, you can change this value
+        float spacing;
+        float startX;
+
+        if (numLamps > 1) {
+            // Spread lamps over 80% of the window width, centered.
+            float effectiveSpreadWidth = WINDOW_WIDTH * 0.8f; 
+            spacing = effectiveSpreadWidth / (numLamps - 1.0f);
+            startX = (WINDOW_WIDTH / 2.0f) - (effectiveSpreadWidth / 2.0f);
+        } else { // numLamps == 1
+            spacing = 0.0f; // No spacing needed for a single lamp
+            startX = WINDOW_WIDTH / 2.0f; // Place single lamp in the center
+        }
+
+        // Upper sidewalk lamps
+        for (int i = 0; i < numLamps; ++i) {
+            float lampX = startX + i * spacing;
+            streetLamps.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START));
+        }
+
+        // Lower sidewalk lamps with a phase shift
+        const float phaseShift = 50.0f; // The amount of phase shift
+        for (int i = 0; i < numLamps; ++i) {
+            float lampX = startX + i * spacing + phaseShift;
+            streetLamps.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END));
+        }
+
+        lampsInitialized = true;
+    }
+
+    // Add the pre-initialized street lamps to drawableObjects
+    for (const auto& lamp : streetLamps) {
+        drawableObjects.push_back(lamp);
+    }
+
+    for (const auto& building : backgroundBuildings) {
+        drawableObjects.push_back(building);
+    }
 
     // Create and add vehicles
     for (const auto& vehicle : vehicles) {
@@ -2148,35 +2278,6 @@ void drawSceneObjects() {
     drawableObjects.push_back(std::make_shared<PineTree>(700, SIDEWALK_TOP_Y_START + 28));   // -2 from original
     drawableObjects.push_back(std::make_shared<BasicTree>(850, SIDEWALK_BOTTOM_Y_START - 2)); // -2 from original
     drawableObjects.push_back(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START - 2));  // -2 from original
-
-    // Add street lamps as objects
-    const int numLamps = 3; // Define N here, you can change this value
-    float spacing;
-    float startX;
-
-    if (numLamps > 1) {
-        // Spread lamps over 80% of the window width, centered.
-        float effectiveSpreadWidth = WINDOW_WIDTH * 0.8f; 
-        spacing = effectiveSpreadWidth / (numLamps - 1.0f);
-        startX = (WINDOW_WIDTH / 2.0f) - (effectiveSpreadWidth / 2.0f);
-
-    } else { // numLamps == 1
-        spacing = 0.0f; // No spacing needed for a single lamp
-        startX = WINDOW_WIDTH / 2.0f; // Place single lamp in the center
-    }
-
-    // Upper sidewalk lamps
-    for (int i = 0; i < numLamps; ++i) {
-        float lampX = startX + i * spacing;
-        drawableObjects.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START));
-    }
-
-    // Lower sidewalk lamps with a phase shift
-    const float phaseShift = 50.0f; // The amount of phase shift
-    for (int i = 0; i < numLamps; ++i) {
-        float lampX = startX + i * spacing + phaseShift;
-        drawableObjects.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END));
-    }
 
     // Add traffic signal as an object
     drawableObjects.push_back(trafficSignal);
@@ -2405,6 +2506,7 @@ void updateTrafficLights() {
 }
 
 void updateScene() {
+    updateBuildings();
     updateVehicles();
     updateHumans();
     updateDayNight();
@@ -2446,6 +2548,15 @@ void timer(int)
     {
         updateScene();
         frameCount++;
+        // Resume music if not paused and desired
+        if (backgroundMusicDesired && !audioManager.isPlaying("traffic")) {
+            audioManager.playSound("traffic", true);
+            audioManager.playSound("people", true);
+        }
+    } else {
+        // Pause music if paused
+        audioManager.stopSound("traffic");
+        audioManager.stopSound("people");
     }
 
     //std::cout << (int)frameCount << std::endl;
@@ -2491,12 +2602,14 @@ void keyboard(unsigned char key, int x, int y) {
         case 'm':
         case 'M':
             // Toggle background traffic sound
-            if (audioManager.isPlaying("traffic")) {
+            if (backgroundMusicDesired) { // If music is currently desired
                 audioManager.stopSound("traffic");
                 audioManager.stopSound("people");
-            } else {
+                backgroundMusicDesired = false;
+            } else { // If music is not currently desired
                 audioManager.playSound("traffic", true);
                 audioManager.playSound("people", true);
+                backgroundMusicDesired = true;
             }
             break;
         case 27: // ESC key
@@ -2532,6 +2645,13 @@ void init()
     
     // Initialize random seed
     srand(time(0));
+
+    backgroundBuildings.clear();
+    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
+    backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(220.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
+    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(350.0f, SIDEWALK_TOP_Y_END, 100.0f, 120.0f));
+    backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(500.0f, SIDEWALK_TOP_Y_END, 90.0f, 240.0f));
+    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(700.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
 
     // Initialize vehicles
     for (int i = 0; i < 4; ++i) {
