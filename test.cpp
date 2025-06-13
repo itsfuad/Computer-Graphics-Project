@@ -486,10 +486,6 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
     // --- Chassis and Cargo connection
     glColor3f(0.0f, 0.0f, 0.0f);
     drawLine(x + width * 0.65f, y + height * 0.2f, x + width * 0.65f, y + height * 0.8f, 6.0f);
-    
-    // --- Chassis ---
-    glColor3f(0.2f, 0.2f, 0.2f);
-    drawRect(x, y, width, 5); // A thin, dark chassis base
 
     // --- Cargo Bed (Container Style) ---
     glColor3f(r * 0.8f, g * 0.8f, b * 0.8f); // Slightly darker shade for the container
