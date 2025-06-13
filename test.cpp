@@ -1144,151 +1144,147 @@ void drawFlower(float x, float y, float scale = 1.0f) {
     drawCircle(x, y + 10 * scale, 2.2f * scale, 10);
 }
 
+class Tree : public Drawable {
+public:
+    Tree(float x, float y, float w, float h) : Drawable(x, y, w, h) {}
+    virtual void draw() = 0;
+    virtual ~Tree() = default;
+};
 
+class BasicTree : public Tree {
+public:
+    BasicTree(float x, float y) : Tree(x, y, 40, 80) {}
+    void draw() override {
+        glColor3f(0.5f, 0.3f, 0.05f);
+        glBegin(GL_QUADS);
+        glVertex2f(x - 8, y);  // Reduced from 12
+        glVertex2f(x + 8, y);
+        glVertex2f(x + 6, y + 50);  // Reduced from 70
+        glVertex2f(x - 6, y + 50);
+        glEnd();
 
-void drawBasicTree(float x_pos, float y_pos_on_sidewalk) {
-    glColor3f(0.5f, 0.3f, 0.05f);
-    glBegin(GL_QUADS);
-    glVertex2f(x_pos - 8, y_pos_on_sidewalk);  // Reduced from 12
-    glVertex2f(x_pos + 8, y_pos_on_sidewalk);
-    glVertex2f(x_pos + 6, y_pos_on_sidewalk + 50);  // Reduced from 70
-    glVertex2f(x_pos - 6, y_pos_on_sidewalk + 50);
-    glEnd();
-
-    glColor3f(0.0f, 0.45f, 0.05f);
-    drawCircle(x_pos, y_pos_on_sidewalk + 75, 25);  // Reduced from 35
-    drawCircle(x_pos - 15, y_pos_on_sidewalk + 65, 20);  // Reduced from 30
-    drawCircle(x_pos + 15, y_pos_on_sidewalk + 65, 20);  // Reduced from 30
-    glColor3f(0.1f, 0.55f, 0.1f);
-    drawCircle(x_pos, y_pos_on_sidewalk + 80, 18);  // Reduced from 25
-}
-
-void drawPineTree(float x_pos, float y_pos_on_sidewalk) {
-    // Trunk
-    glColor3f(0.5f, 0.3f, 0.05f);
-    glBegin(GL_QUADS);
-    glVertex2f(x_pos - 6, y_pos_on_sidewalk);  // Reduced from 8
-    glVertex2f(x_pos + 6, y_pos_on_sidewalk);
-    glVertex2f(x_pos + 4, y_pos_on_sidewalk + 60);  // Reduced from 80
-    glVertex2f(x_pos - 4, y_pos_on_sidewalk + 60);
-    glEnd();
-
-    // Pine needles - multiple layers with varying sizes
-    glColor3f(0.0f, 0.4f, 0.1f);
-    
-    // Bottom layer - widest
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x_pos - 35, y_pos_on_sidewalk + 60);  // Reduced from 45
-    glVertex2f(x_pos + 35, y_pos_on_sidewalk + 60);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 85);  // Reduced from 110
-    glEnd();
-
-    // Second layer
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x_pos - 30, y_pos_on_sidewalk + 75);  // Reduced from 40
-    glVertex2f(x_pos + 30, y_pos_on_sidewalk + 75);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 100);  // Reduced from 130
-    glEnd();
-
-    // Third layer
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x_pos - 25, y_pos_on_sidewalk + 90);  // Reduced from 35
-    glVertex2f(x_pos + 25, y_pos_on_sidewalk + 90);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 115);  // Reduced from 150
-    glEnd();
-
-    // Fourth layer
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x_pos - 20, y_pos_on_sidewalk + 105);  // Reduced from 30
-    glVertex2f(x_pos + 20, y_pos_on_sidewalk + 105);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 130);  // Reduced from 170
-    glEnd();
-
-    // Top layer - smallest
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x_pos - 15, y_pos_on_sidewalk + 120);  // Reduced from 25
-    glVertex2f(x_pos + 15, y_pos_on_sidewalk + 120);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 145);  // Reduced from 190
-    glEnd();
-
-    // Add some darker green details
-    glColor3f(0.0f, 0.35f, 0.05f);
-    glBegin(GL_TRIANGLES);
-    glVertex2f(x_pos - 25, y_pos_on_sidewalk + 70);  // Reduced from 35
-    glVertex2f(x_pos + 25, y_pos_on_sidewalk + 70);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 95);  // Reduced from 120
-    glEnd();
-}
-
-void drawMapleTree(float x_pos, float y_pos_on_sidewalk) {
-    // Trunk
-    glColor3f(0.5f, 0.3f, 0.05f);
-    glBegin(GL_QUADS);
-    glVertex2f(x_pos - 10, y_pos_on_sidewalk);
-    glVertex2f(x_pos + 10, y_pos_on_sidewalk);
-    glVertex2f(x_pos + 8, y_pos_on_sidewalk + 80);
-    glVertex2f(x_pos - 8, y_pos_on_sidewalk + 80);
-    glEnd();
-
-    // Main branches
-    glBegin(GL_QUADS);
-    glVertex2f(x_pos - 8, y_pos_on_sidewalk + 60);
-    glVertex2f(x_pos + 8, y_pos_on_sidewalk + 60);
-    glVertex2f(x_pos + 6, y_pos_on_sidewalk + 80);
-    glVertex2f(x_pos - 6, y_pos_on_sidewalk + 80);
-    glEnd();
-
-    // Maple leaves - multiple layers
-    glColor3f(0.0f, 0.5f, 0.1f);
-    for (int i = 0; i < 3; i++) {
-        float y = y_pos_on_sidewalk + 80 + i * 20;
-        float radius = 35 - i * 5;
-        drawCircle(x_pos, y, radius);
+        glColor3f(0.0f, 0.45f, 0.05f);
+        drawCircle(x, y + 75, 25);  // Reduced from 35
+        drawCircle(x - 15, y + 65, 20);  // Reduced from 30
+        drawCircle(x + 15, y + 65, 20);  // Reduced from 30
+        glColor3f(0.1f, 0.55f, 0.1f);
+        drawCircle(x, y + 80, 18);  // Reduced from 25
     }
-}
+};
 
-void drawTree(float x, float y, int type) {
-    switch(type) {
-        case 0: 
-            drawBasicTree(x, y);
-            break;
-        case 1: 
-            drawPineTree(x, y); 
-            break;
+class PineTree : public Tree {
+public:
+    PineTree(float x, float y) : Tree(x, y, 50, 130) {}
+    void draw() override {
+        // Trunk
+        glColor3f(0.5f, 0.3f, 0.05f);
+        glBegin(GL_QUADS);
+        glVertex2f(x - 6, y);  // Reduced from 8
+        glVertex2f(x + 6, y);
+        glVertex2f(x + 4, y + 60);  // Reduced from 80
+        glVertex2f(x - 4, y + 60);
+        glEnd();
+
+        // Pine needles - multiple layers with varying sizes
+        glColor3f(0.0f, 0.4f, 0.1f);
+        // Bottom layer - widest
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x - 35, y + 60);  // Reduced from 45
+        glVertex2f(x + 35, y + 60);
+        glVertex2f(x, y + 85);  // Reduced from 110
+        glEnd();
+        // Second layer
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x - 30, y + 75);  // Reduced from 40
+        glVertex2f(x + 30, y + 75);
+        glVertex2f(x, y + 100);  // Reduced from 130
+        glEnd();
+        // Third layer
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x - 25, y + 90);  // Reduced from 35
+        glVertex2f(x + 25, y + 90);
+        glVertex2f(x, y + 115);  // Reduced from 150
+        glEnd();
+        // Fourth layer
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x - 20, y + 105);  // Reduced from 30
+        glVertex2f(x + 20, y + 105);
+        glVertex2f(x, y + 130);  // Reduced from 170
+        glEnd();
+        // Top layer - smallest
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x - 15, y + 120);  // Reduced from 25
+        glVertex2f(x + 15, y + 120);
+        glVertex2f(x, y + 145);  // Reduced from 190
+        glEnd();
+        // Add some darker green details
+        glColor3f(0.0f, 0.35f, 0.05f);
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x - 25, y + 70);  // Reduced from 35
+        glVertex2f(x + 25, y + 70);
+        glVertex2f(x, y + 95);  // Reduced from 120
+        glEnd();
     }
-}
+};
 
-
-void drawStreetLamp(float x_pos, float y_pos_on_sidewalk)
-{
-    glColor3f(0.5f, 0.5f, 0.5f);
-    glBegin(GL_QUADS);
-    glVertex2f(x_pos - 3, y_pos_on_sidewalk);
-    glVertex2f(x_pos + 3, y_pos_on_sidewalk);
-    glVertex2f(x_pos + 3, y_pos_on_sidewalk + 120);  // Reduced from 160
-    glVertex2f(x_pos - 3, y_pos_on_sidewalk + 120);
-    glEnd();
-    glBegin(GL_QUADS);
-    glVertex2f(x_pos, y_pos_on_sidewalk + 120);
-    glVertex2f(x_pos + 30, y_pos_on_sidewalk + 120);  // Reduced from 40
-    glVertex2f(x_pos + 30, y_pos_on_sidewalk + 115);  // Reduced from 155
-    glVertex2f(x_pos, y_pos_on_sidewalk + 115);
-    glEnd();
-    if (isNight)
-    {
-        glColor3f(1.0f, 1.0f, 0.7f);
-        drawCircle(x_pos + 30, y_pos_on_sidewalk + 110, 10);  // Reduced from 14
-        glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
-        drawCircle(x_pos + 30, y_pos_on_sidewalk + 110, 16);  // Reduced from 22
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+class MapleTree : public Tree {
+public:
+    MapleTree(float x, float y) : Tree(x, y, 70, 120) {}
+    void draw() override {
+        // Trunk
+        glColor3f(0.5f, 0.3f, 0.05f);
+        glBegin(GL_QUADS);
+        glVertex2f(x - 10, y);
+        glVertex2f(x + 10, y);
+        glVertex2f(x + 8, y + 80);
+        glVertex2f(x - 8, y + 80);
+        glEnd();
+        // Main branches
+        glBegin(GL_QUADS);
+        glVertex2f(x - 8, y + 60);
+        glVertex2f(x + 8, y + 60);
+        glVertex2f(x + 6, y + 80);
+        glVertex2f(x - 6, y + 80);
+        glEnd();
+        // Maple leaves - multiple layers
+        glColor3f(0.0f, 0.5f, 0.1f);
+        for (int i = 0; i < 3; i++) {
+            float yy = y + 80 + i * 20;
+            float radius = 35 - i * 5;
+            drawCircle(x, yy, radius);
+        }
     }
-    else
-    {
-        glColor3f(0.6f, 0.6f, 0.5f);
-        drawCircle(x_pos + 30, y_pos_on_sidewalk + 110, 8);  // Reduced from 12
-    }
-}
+};
 
+class StreetLamp : public Drawable {
+public:
+    StreetLamp(float x, float y) : Drawable(x, y, 36, 120) {}
+    void draw() override {
+        glColor3f(0.5f, 0.5f, 0.5f);
+        glBegin(GL_QUADS);
+        glVertex2f(x - 3, y);
+        glVertex2f(x + 3, y);
+        glVertex2f(x + 3, y + 120);
+        glVertex2f(x - 3, y + 120);
+        glEnd();
+        glBegin(GL_QUADS);
+        glVertex2f(x, y + 120);
+        glVertex2f(x + 30, y + 120);
+        glVertex2f(x + 30, y + 115);
+        glVertex2f(x, y + 115);
+        glEnd();
+        if (isNight) {
+            glColor3f(1.0f, 1.0f, 0.7f);
+            drawCircle(x + 30, y + 110, 10);
+            glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
+            drawCircle(x + 30, y + 110, 16);
+            glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        } else {
+            glColor3f(0.6f, 0.6f, 0.5f);
+            drawCircle(x + 30, y + 110, 8);
+        }
+    }
+};
 
 void drawHumanShape(float x, float y, float scale, int walkState) {
     glPushMatrix();
@@ -1688,16 +1684,18 @@ void drawSceneObjects() {
         drawableObjects.push_back(std::static_pointer_cast<Drawable>(vehicle));
     }
 
-    // Draw trees and street lamps (these are still drawn directly as they're not objects)
-    drawTree(180, SIDEWALK_TOP_Y_START + 30, 0);
-    drawTree(500, SIDEWALK_TOP_Y_START + 30, 1);
-    drawTree(700, SIDEWALK_TOP_Y_START + 30, 1);
-    drawStreetLamp(80, SIDEWALK_TOP_Y_START);
-    drawStreetLamp(380, SIDEWALK_TOP_Y_START);
-    drawStreetLamp(780, SIDEWALK_TOP_Y_START);
-    drawTree(850, SIDEWALK_BOTTOM_Y_START, 0);
-    drawTree(300, SIDEWALK_BOTTOM_Y_START, 1);
-    drawStreetLamp(950, SIDEWALK_BOTTOM_Y_START);
+    // Add trees as objects (replace drawTree calls)
+    drawableObjects.push_back(std::make_unique<BasicTree>(180, SIDEWALK_TOP_Y_START + 30));
+    drawableObjects.push_back(std::make_unique<PineTree>(500, SIDEWALK_TOP_Y_START + 30));
+    drawableObjects.push_back(std::make_unique<PineTree>(700, SIDEWALK_TOP_Y_START + 30));
+    drawableObjects.push_back(std::make_unique<BasicTree>(850, SIDEWALK_BOTTOM_Y_START));
+    drawableObjects.push_back(std::make_unique<PineTree>(300, SIDEWALK_BOTTOM_Y_START));
+
+    // Add street lamps as objects
+    drawableObjects.push_back(std::make_unique<StreetLamp>(80, SIDEWALK_TOP_Y_START));
+    drawableObjects.push_back(std::make_unique<StreetLamp>(380, SIDEWALK_TOP_Y_START));
+    drawableObjects.push_back(std::make_unique<StreetLamp>(780, SIDEWALK_TOP_Y_START));
+    drawableObjects.push_back(std::make_unique<StreetLamp>(950, SIDEWALK_BOTTOM_Y_START));
 
     // Draw traffic signal
     drawTrafficSignal(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START, mainTrafficLightState);
