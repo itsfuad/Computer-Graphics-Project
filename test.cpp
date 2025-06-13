@@ -69,14 +69,15 @@ bool showWarningMessage = false;
 int lastCarSpawnTime = 0;
 int lastHumanSpawnTime = 0;
 
+TrafficLightState mainTrafficLightState = TrafficLightState::GREEN;
+PedestrianLightState pedestrianLightState = PedestrianLightState::DONT_WALK;
+
 // Enums for Traffic and Pedestrian Lights
 enum class TrafficLightState { RED, GREEN };
 enum class PedestrianLightState { DONT_WALK, WALK };
 enum class VehicleType { CAR, TRUCK, BUS };
 enum class HumanState { WALKING_ON_SIDEWALK, WAITING_AT_CROSSING_EDGE, CROSSING_ROAD, REACHED_OTHER_SIDEWALK, WALKING_AWAY_ON_SIDEWALK, DESPAWNED };
 
-TrafficLightState mainTrafficLightState = TrafficLightState::GREEN;
-PedestrianLightState pedestrianLightState = PedestrianLightState::DONT_WALK;
 
 // Add these constants near the top with other constants
 const float CAR_PRIORITY_THRESHOLD = 450.0f;  // Distance to check for cars
@@ -117,6 +118,8 @@ public:
 
 class Vehicle;
 class AdvancedHuman;
+class TrafficSignal;
+
 
 void drawRect(float x, float y, float width, float height, float translateX = 0.0f, float translateY = 0.0f, int type = GL_QUADS) {
     glBegin(type);
@@ -349,13 +352,34 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
     drawRect(x + width - 5, y + height * 0.25f, 4, 4);
 }
 
+struct Cloud {
+    float x, y;
+    float speed;
+    float scale;
+    Cloud(float _x, float _y, float _scale) : x(_x), y(_y), scale(_scale) {
+        speed = 0.2f + (rand() % 30) / 100.0f; // Random speed between 0.2 and 0.5
+    }
+};
+
+// Add this struct after the Cloud struct
+struct Star {
+    float x, y;
+    float size;
+    float baseBrightness;
+    float blinkPhase;
+    Star(float _x, float _y, float _size) :
+        x(_x), y(_y), size(_size),
+        baseBrightness(0.7f + (rand() % 30) / 100.0f), // Random base brightness between 0.7 and 1.0
+        blinkPhase(rand() % 628) // Random starting phase (0 to 2π)
+    {}
+};
 
 // Global collections of scene objects
 std::vector<std::shared_ptr<Vehicle>> vehicles; // Changed from Car
-std::vector<std::shared_ptr<AdvancedHuman>> activeHumans; // Change the activeHumans vector declaration
-
-// Global vector to store all drawable objects
-std::vector<std::shared_ptr<Drawable>> drawableObjects;
+std::vector<std::shared_ptr<AdvancedHuman>> activeHumans;
+std::vector<std::shared_ptr<Drawable>> drawableObjects;  // Change back to shared_ptr
+std::vector<Cloud> clouds;
+std::vector<Star> stars;
 
 // ===================================================================
 //  AdvancedHuman Class (Merger of Man.cpp and Human struct)
@@ -852,14 +876,6 @@ void drawText(float x, float y, const char* text, float scale = 0.7f) {
     glPopMatrix();
 }
 
-struct Cloud {
-    float x, y;
-    float speed;
-    float scale;
-    Cloud(float _x, float _y, float _scale) : x(_x), y(_y), scale(_scale) {
-        speed = 0.2f + (rand() % 30) / 100.0f; // Random speed between 0.2 and 0.5
-    }
-};
 unsigned short HumansWaitingToCross() {
     unsigned short count = 0;
     for (const auto& human : activeHumans) {
@@ -879,21 +895,6 @@ unsigned short HumansCrossing() {
     }
     return count;
 }
-
-// Add this struct after the Cloud struct
-struct Star {
-    float x, y;
-    float size;
-    float baseBrightness;
-    float blinkPhase;
-    Star(float _x, float _y, float _size) :
-        x(_x), y(_y), size(_size),
-        baseBrightness(0.7f + (rand() % 30) / 100.0f), // Random base brightness between 0.7 and 1.0
-        blinkPhase(rand() % 628) // Random starting phase (0 to 2π)
-    {}
-};
-std::vector<Cloud> clouds;
-std::vector<Star> stars;
 
 
 // Add these new functions before the display() function
@@ -1286,119 +1287,124 @@ public:
     }
 };
 
-void drawHumanShape(float x, float y, float scale, int walkState) {
-    glPushMatrix();
-    glTranslatef(x, y, 0.0f);
-    glScalef(scale, scale, 1.0f);
-    
-    if (walkState == 1) {
-        // WALK state - walking figure
-        //color 
-        glColor3f(0.0f, 0.9f, 0.0f); // Green for "WALK"
-        //left hand
-        drawLine(-7, -4, -3, 4, 4.0f); // Adjust for visibility
-        drawLine(6, 0, 3, 4, 4.0f);    // Adjust for visibility
-        drawLine(6, -4, 6, 0, 4.0f);    // Adjust for visibility
-        //legs as ^
-        drawLine(-5, -10, -1, -2, 4.0f); // Adjust for visibility
-        drawLine(5, -10, 1, -2, 4.0f);  // Adjust for visibility
-    } else {
-        // STOP state - standing figure
-        glColor3f(0.9f, 0.0f, 0.0f); // Red for "STOP"
-        //left hand
-        drawLine(-3, -4, -3, 4, 4.0f); // Adjust for visibility
-        //right hand
-        drawLine(3.2, -4, 3.2, 4, 4.0f); // Adjust for visibility
-        //left leg
-        drawLine(-1, -10, -1, -2, 4.0f); // Adjust for visibility
-        //right leg
-        drawLine(1.2, -10, 1.2, -2, 4.0f); // Adjust for visibility
-    }
 
-    drawCircle(0, 7.5, 3);
-    // Body - Adjust for centering and visibility
-    drawRect(0.0f, 0.0f, 4.0f, 8.0f, -4.0f / 2.0f, -8.0f / 2.0f); 
-    
-    glPopMatrix();
-}
+class TrafficSignal : public Drawable {
+public:
 
-void drawHumanSign(float x, float y, PedestrianLightState state) {
-    // Add blinking logic for yellow light
-    if (yellowLightOn) {
-        // Blink the DONT_WALK sign
-        if ((frameCount / YELLOW_BLINK_INTERVAL) % 2 == 0) { // Draw on alternate blink intervals
-            glColor3f(0.9f, 0.0f, 0.0f); // Red for blinking "DONT WALK"
-            drawHumanShape(x + 5, y + 85, 0.8, 0); // Draw standing figure (DONT_WALK)
-        }
-    } else {
-        // Normal drawing based on pedestrian light state
-        if (state == PedestrianLightState::WALK) {
-            glColor3f(0.0f, 0.9f, 0.0f);
-        } else {
-            glColor3f(0.9f, 0.0f, 0.0f);
-        }
-        drawHumanShape(x + 5, y + 85, 0.8, state == PedestrianLightState::WALK ? 1 : 0);
-    }
-}
+    TrafficSignal(float x, float y) : Drawable(x, y, 20, 60) {}
+    void draw() override {
+        const float height = 60.0f;
+        const float width = 20.0f;
+        const float lightRadius = 8.0f;
+        float spacing = height / 3.0f;
+        int translateY = 60;
+        int translateX = -(width / 4);
+        const float gap = 18;
 
+        // Draw three segments (top, middle, bottom)
+        for (int i = 0; i < 3; i++) {
+            float centerY = y + height - (i + 0.5f) * spacing;
+            // Determine bulb color based on segment and current state
+            if(i == 0 && mainTrafficLightState == TrafficLightState::RED && !yellowLightOn)
+                glColor3f(1.0f, 0.0f, 0.0f);
+            else if(i == 1 && yellowLightOn)
+                glColor3f(1.0f, 1.0f, 0.0f);
+            else if(i == 2 && mainTrafficLightState == TrafficLightState::GREEN && !yellowLightOn)
+                glColor3f(0.0f, 1.0f, 0.0f);
+            else
+                glColor3f(0.3f, 0.3f, 0.3f); // dim bulb when off
 
-void drawTrafficSignal(float x, float y, TrafficLightState state) {
-    const float height = 60.0f;
-    const float width = 20.0f;
-    const float lightRadius = 8.0f;
-    float spacing = height / 3.0f;
-    int translateY = 60;
-    int translateX = -(width / 4);
-    const float gap = 18;
+            // Draw left and right semi-circles for the bulb
+            drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius);
+            drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius);
 
-    // Draw three segments (top, middle, bottom)
-    for (int i = 0; i < 3; i++) {
-        float centerY = y + height - (i + 0.5f) * spacing;
-        // Determine bulb color based on segment and current state
-        if(i == 0 && state == TrafficLightState::RED && !yellowLightOn)
-            glColor3f(1.0f, 0.0f, 0.0f);
-        else if(i == 1 && yellowLightOn)
-            glColor3f(1.0f, 1.0f, 0.0f);
-        else if(i == 2 && state == TrafficLightState::GREEN && !yellowLightOn)
-            glColor3f(0.0f, 1.0f, 0.0f);
-        else
-            glColor3f(0.3f, 0.3f, 0.3f); // dim bulb when off
+            bool drawGlow = true;
 
-        // Draw left and right semi-circles for the bulb
-        drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius);
-        drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius);
+            if(i == 0 && mainTrafficLightState == TrafficLightState::RED && !yellowLightOn)
+                glColor4f(1.0f, 0.0f, 0.0f, 0.3f);
+            else if(i == 1 && yellowLightOn)
+                glColor4f(1.0f, 1.0f, 0.0f, 0.3f);
+            else if(i == 2 && mainTrafficLightState == TrafficLightState::GREEN && !yellowLightOn)
+                glColor4f(0.0f, 1.0f, 0.0f, 0.3f);
+            else
+                drawGlow = false;
+        
+            if (drawGlow) {
+                drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
+                drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
+            }
 
-        bool drawGlow = true;
-
-        if(i == 0 && state == TrafficLightState::RED && !yellowLightOn)
-            glColor4f(1.0f, 0.0f, 0.0f, 0.3f);
-        else if(i == 1 && yellowLightOn)
-            glColor4f(1.0f, 1.0f, 0.0f, 0.3f);
-        else if(i == 2 && state == TrafficLightState::GREEN && !yellowLightOn)
-            glColor4f(0.0f, 1.0f, 0.0f, 0.3f);
-        else
-            drawGlow = false;
-    
-        if (drawGlow) {
-            drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
-            drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
+            // Draw triangle shapes on each side
+            glColor3f(0.0f, 0.0f, 0.0f);
+            drawTriangle(x + translateX, centerY + translateY, x + translateX - 10, centerY + translateY, x + translateX, centerY - 10 + translateY);
+            drawTriangle(x + translateX + width, centerY + translateY, x + translateX + width + 10, centerY + translateY, x + translateX + width, centerY - 10 + translateY);
         }
 
-        // Draw triangle shapes on each side
+        // Draw the main black signal box
         glColor3f(0.0f, 0.0f, 0.0f);
-        drawTriangle(x + translateX, centerY + translateY, x + translateX - 10, centerY + translateY, x + translateX, centerY - 10 + translateY);
-        drawTriangle(x + translateX + width, centerY + translateY, x + translateX + width + 10, centerY + translateY, x + translateX + width, centerY - 10 + translateY);
+        drawRect(x + translateX, y + translateY - 8, width, height);
+        
+        // Draw the pole (originally missing)
+        drawRect(x, y, 10, 100); 
+
+        drawHumanSign();
     }
 
-    // Draw the main black signal box
-    glColor3f(0.0f, 0.0f, 0.0f);
-    drawRect(x + translateX, y + translateY - 8, width, height);
-    
-    // Draw the pole (originally missing)
-    drawRect(x, y, 10, 100); 
+private:
+    void drawHumanShape(float x, float y, float scale, int walkState) {
+        glPushMatrix();
+        glTranslatef(x, y, 0.0f);
+        glScalef(scale, scale, 1.0f);
+        
+        if (walkState == 1) {
+            // WALK state - walking figure
+            //color 
+            glColor3f(0.0f, 0.9f, 0.0f); // Green for "WALK"
+            //left hand
+            drawLine(-7, -4, -3, 4, 4.0f); // Adjust for visibility
+            drawLine(6, 0, 3, 4, 4.0f);    // Adjust for visibility
+            drawLine(6, -4, 6, 0, 4.0f);    // Adjust for visibility
+            //legs as ^
+            drawLine(-5, -10, -1, -2, 4.0f); // Adjust for visibility
+            drawLine(5, -10, 1, -2, 4.0f);  // Adjust for visibility
+        } else {
+            // STOP state - standing figure
+            glColor3f(0.9f, 0.0f, 0.0f); // Red for "STOP"
+            //left hand
+            drawLine(-3, -4, -3, 4, 4.0f); // Adjust for visibility
+            //right hand
+            drawLine(3.2, -4, 3.2, 4, 4.0f); // Adjust for visibility
+            //left leg
+            drawLine(-1, -10, -1, -2, 4.0f); // Adjust for visibility
+            //right leg
+            drawLine(1.2, -10, 1.2, -2, 4.0f); // Adjust for visibility
+        }
 
-    drawHumanSign(x, y, pedestrianLightState);
-}
+        drawCircle(0, 7.5, 3);
+        // Body - Adjust for centering and visibility
+        drawRect(0.0f, 0.0f, 4.0f, 8.0f, -4.0f / 2.0f, -8.0f / 2.0f); 
+        
+        glPopMatrix();
+    }
+    void drawHumanSign() {
+        // Add blinking logic for yellow light
+        if (yellowLightOn) {
+            // Blink the DONT_WALK sign
+            if ((frameCount / YELLOW_BLINK_INTERVAL) % 2 == 0) { // Draw on alternate blink intervals
+                glColor3f(0.9f, 0.0f, 0.0f); // Red for blinking "DONT WALK"
+                drawHumanShape(x + 5, y + 85, 0.8, 0); // Draw standing figure (DONT_WALK)
+            }
+        } else {
+            // Normal drawing based on pedestrian light state
+            if (pedestrianLightState == PedestrianLightState::WALK) {
+                glColor3f(0.0f, 0.9f, 0.0f);
+            } else {
+                glColor3f(0.9f, 0.0f, 0.0f);
+            }
+            drawHumanShape(x + 5, y + 85, 0.8, pedestrianLightState == PedestrianLightState::WALK ? 1 : 0);
+        }
+    }
+};
 
 void spawnNewVehicle() {
     float spawnW, spawnH;
@@ -1517,27 +1523,6 @@ void drawBackgroundScenes() {
 
     // Draw stars
     drawStars();
-
-    // // Draw buildings on the top side
-    // float buildingY = SIDEWALK_TOP_Y_END;
-
-    // // Modern building
-    // drawModernBuilding(60.0f, buildingY, 80.0f, 120.0f);
-
-    // // Classic building
-    // drawClassicBuilding(180.0f, buildingY, 100.0f, 100.0f);
-
-    // // Skyscraper
-    // drawSkyscraper(340.0f, buildingY, 60.0f, 180.0f);
-
-    // // Another modern building
-    // drawModernBuilding(460.0f, buildingY, 90.0f, 140.0f);
-
-    // // Another classic building
-    // drawClassicBuilding(620.0f, buildingY, 110.0f, 110.0f);
-
-    // // Another skyscraper
-    // drawSkyscraper(840.0f, buildingY, 70.0f, 200.0f);
 }
 
 
@@ -1672,12 +1657,12 @@ void drawSceneObjects() {
     drawableObjects.clear();
     
     // Create and add buildings
-    drawableObjects.push_back(std::make_unique<ModernBuilding>(60.0f, SIDEWALK_TOP_Y_END, 80.0f, 120.0f));
-    drawableObjects.push_back(std::make_unique<ClassicBuilding>(180.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f));
-    drawableObjects.push_back(std::make_unique<SkyScraper>(340.0f, SIDEWALK_TOP_Y_END, 60.0f, 180.0f));
-    drawableObjects.push_back(std::make_unique<ModernBuilding>(460.0f, SIDEWALK_TOP_Y_END, 90.0f, 140.0f));
-    drawableObjects.push_back(std::make_unique<ClassicBuilding>(620.0f, SIDEWALK_TOP_Y_END, 110.0f, 110.0f));
-    drawableObjects.push_back(std::make_unique<SkyScraper>(840.0f, SIDEWALK_TOP_Y_END, 70.0f, 200.0f));
+    drawableObjects.push_back(std::make_shared<ModernBuilding>(60.0f, SIDEWALK_TOP_Y_END, 80.0f, 120.0f));
+    drawableObjects.push_back(std::make_shared<ClassicBuilding>(180.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f));
+    drawableObjects.push_back(std::make_shared<SkyScraper>(340.0f, SIDEWALK_TOP_Y_END, 60.0f, 180.0f));
+    drawableObjects.push_back(std::make_shared<ModernBuilding>(460.0f, SIDEWALK_TOP_Y_END, 90.0f, 140.0f));
+    drawableObjects.push_back(std::make_shared<ClassicBuilding>(620.0f, SIDEWALK_TOP_Y_END, 110.0f, 110.0f));
+    drawableObjects.push_back(std::make_shared<SkyScraper>(840.0f, SIDEWALK_TOP_Y_END, 70.0f, 200.0f));
 
     // Create and add vehicles
     for (const auto& vehicle : vehicles) {
@@ -1685,20 +1670,20 @@ void drawSceneObjects() {
     }
 
     // Add trees as objects (replace drawTree calls)
-    drawableObjects.push_back(std::make_unique<BasicTree>(180, SIDEWALK_TOP_Y_START + 30));
-    drawableObjects.push_back(std::make_unique<PineTree>(500, SIDEWALK_TOP_Y_START + 30));
-    drawableObjects.push_back(std::make_unique<PineTree>(700, SIDEWALK_TOP_Y_START + 30));
-    drawableObjects.push_back(std::make_unique<BasicTree>(850, SIDEWALK_BOTTOM_Y_START));
-    drawableObjects.push_back(std::make_unique<PineTree>(300, SIDEWALK_BOTTOM_Y_START));
+    drawableObjects.push_back(std::make_shared<BasicTree>(180, SIDEWALK_TOP_Y_START + 30));
+    drawableObjects.push_back(std::make_shared<PineTree>(500, SIDEWALK_TOP_Y_START + 30));
+    drawableObjects.push_back(std::make_shared<PineTree>(700, SIDEWALK_TOP_Y_START + 30));
+    drawableObjects.push_back(std::make_shared<BasicTree>(850, SIDEWALK_BOTTOM_Y_START));
+    drawableObjects.push_back(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START));
 
     // Add street lamps as objects
-    drawableObjects.push_back(std::make_unique<StreetLamp>(80, SIDEWALK_TOP_Y_START));
-    drawableObjects.push_back(std::make_unique<StreetLamp>(380, SIDEWALK_TOP_Y_START));
-    drawableObjects.push_back(std::make_unique<StreetLamp>(780, SIDEWALK_TOP_Y_START));
-    drawableObjects.push_back(std::make_unique<StreetLamp>(950, SIDEWALK_BOTTOM_Y_START));
+    drawableObjects.push_back(std::make_shared<StreetLamp>(80, SIDEWALK_TOP_Y_START));
+    drawableObjects.push_back(std::make_shared<StreetLamp>(380, SIDEWALK_TOP_Y_START));
+    drawableObjects.push_back(std::make_shared<StreetLamp>(780, SIDEWALK_TOP_Y_START));
+    drawableObjects.push_back(std::make_shared<StreetLamp>(950, SIDEWALK_BOTTOM_Y_START));
 
-    // Draw traffic signal
-    drawTrafficSignal(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START, mainTrafficLightState);
+    // Add traffic signal as an object
+    drawableObjects.push_back(std::make_shared<TrafficSignal>(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START));
 
     // Add humans to drawable objects
     for (const auto& human : activeHumans) {
@@ -2071,6 +2056,9 @@ void init()
     }
     
     std::cout << "OpenGL initialization complete" << std::endl;
+
+    // Initialize traffic signal - add it directly to drawableObjects
+    drawableObjects.push_back(std::make_shared<TrafficSignal>(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START));
 }
 
 
