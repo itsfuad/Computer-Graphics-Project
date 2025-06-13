@@ -171,7 +171,7 @@ public:
         }
 
         std::vector<unsigned char> data(dataSize);
-        if (fread(data.data(), 1, dataSize, file) != dataSize) {
+        if (fread(data.data(), 1, dataSize, file) != static_cast<size_t>(dataSize)) {
             std::cerr << "Failed to read audio data from " << filePath << std::endl;
             fclose(file);
             alDeleteBuffers(1, &buffer);
@@ -317,6 +317,9 @@ const float CAR_PRIORITY_THRESHOLD = 450.0f;  // Distance to check for cars
 const int MIN_CARS_FOR_PRIORITY = 2;         // Minimum cars to give them priority
 const int MIN_HUMANS_FOR_PRIORITY = 1;       // Minimum humans to give them priority
 
+// Add this near the top of the file with other constants
+const float VEHICLE_WHEEL_OFFSET = 5.0f;  // How much to lift vehicles to prevent wheel overlap
+
 // ===================================================================
 //  Helper Structs & Classes from Man.cpp and oldCode.cpp
 // ===================================================================
@@ -351,6 +354,18 @@ public:
 
 class Vehicle;
 class AdvancedHuman;
+
+// Prototypes for functions that are defined later
+void drawText(float x, float y, const char* text, float scale = 0.7f) {
+    glPushMatrix();
+    glTranslatef(x, y, 0.0f);
+    glScalef(scale, scale, 1.0f);
+    glRasterPos2f(0, 0);
+    for (const char* p = text; *p; p++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *p);
+    }
+    glPopMatrix();
+}
 
 void drawRect(float x, float y, float width, float height, float translateX = 0.0f, float translateY = 0.0f, int type = GL_QUADS) {
     glBegin(type);
@@ -404,7 +419,10 @@ int timeNow() {
 //  NEW VEHICLE DRAWING FUNCTIONS
 // ===================================================================
 
-void drawModernCar(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed) {
+void drawModernCar(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed, bool isHonking = false) {
+    glPushMatrix();
+    glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
+
     // Body
     glColor3f(r, g, b);
     drawRect(x, y, width, height * 0.6f);
@@ -429,7 +447,7 @@ void drawModernCar(float x, float y, float width, float height, float r, float g
     glEnd();
     drawLine(x + width * 0.5f, y + height * 0.6f, x + width * 0.5f, y + height);
 
-    // Wheels
+    // Wheels - draw them at y - VEHICLE_WHEEL_OFFSET
     glColor3f(0.1f, 0.1f, 0.1f); // Tire
     drawCircle(x + width * 0.25f, y, height * 0.25f);
     drawCircle(x + width * 0.75f, y, height * 0.25f);
@@ -454,10 +472,14 @@ void drawModernCar(float x, float y, float width, float height, float r, float g
         glColor3f(0.9f, 0.9f, 0.9f); // Turned off light
     }
     drawRect(x + width - 4, y + height * 0.3f, 4, 6);
+
+    glPopMatrix();  // Restore original matrix
 }
 
 
-void drawTruck(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed) {
+void drawTruck(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed, bool isHonking = false) {
+    glPushMatrix();
+    glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
     
     // --- Chassis and Cargo connection
     glColor3f(0.0f, 0.0f, 0.0f);
@@ -540,10 +562,15 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
     }
     
     drawRect(x + width - 5, y + height * 0.2f, 5, 5);
+
+    glPopMatrix();  // Restore original matrix
 }
 
 
-void drawBus(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed) {
+void drawBus(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed, bool isHonking = false) {
+    glPushMatrix();
+    glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
+
     // Main Body
     glColor3f(r, g, b);
     drawRect(x, y, width, height);
@@ -559,7 +586,7 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
         drawRect(windowX, windowY, windowWidth, windowHeight);
     }
 
-    // Wheels
+    // Wheels - draw them at y - VEHICLE_WHEEL_OFFSET
     glColor3f(0.1f, 0.1f, 0.1f);
     drawCircle(x + width * 0.2f, y, height * 0.25f);
     drawCircle(x + width * 0.8f, y, height * 0.25f);
@@ -581,6 +608,8 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
         glColor3f(0.9f, 0.9f, 0.9f);
     }
     drawRect(x + width - 5, y + height * 0.25f, 4, 4);
+
+    glPopMatrix();  // Restore original matrix
 }
 
 struct Cloud {
@@ -612,7 +641,16 @@ std::vector<std::shared_ptr<Drawable>> drawableObjects;  // Change back to share
 std::vector<Cloud> clouds;
 std::vector<Star> stars;
 
+// Global vector to store debug drawing calls
+std::vector<std::function<void()>> debugCalls;
 
+// --- Function to draw all stored debug calls ---
+void drawDebugOverlay() {
+    for (const auto& debugCall : debugCalls) {
+        debugCall();
+    }
+    debugCalls.clear(); // Clear calls for the next frame
+}
 
 class TrafficSignal : public Drawable {
 public:
@@ -1092,11 +1130,13 @@ public:
         glPopMatrix();
 
         // Draw yellow debug bounding box in world coordinates using getBounds()
-        if (DEBUG_ON && !scenePaused) {
+        if (DEBUG_ON) {  // Removed !scenePaused check
             Rect b = getBounds();
             glColor3f(1.0f, 1.0f, 0.0f);  // Yellow
             drawBound(b.x, b.y, 25, 45, -13, -5);
         }
+
+        glPopMatrix();  // Restore original matrix
     }
 };
 
@@ -1109,31 +1149,91 @@ public:
     float r, g, b;
     float speedFactor;
     float current_speed;
-    bool isHonking;
-    int honkTimer;
+    float target_speed;  // The speed we want to reach
+    float acceleration_rate;  // How fast we accelerate
+    float deceleration_rate;  // How fast we decelerate
+    VehicleType type;
+    bool isCurrentlyColliding = false;
+    bool isHonking = false;
+    int honkTimer = 0;
+    int honkDuration = 0;
+    const int HONK_INTERVAL = 120; // Honk every 2 seconds (assuming 60 FPS)
+    const int HONK_DURATION_MAX = 45;  // How long the honk visual effect lasts
+    bool isBlocked = false;  // Add this to track if vehicle is blocked
 
-    Vehicle(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Drawable(_x, _y, _w, _h), r(_r), g(_g), b(_b), 
+    Vehicle(float _x, float _y, float _w, float _h, float _r, float _g, float _b, VehicleType _type)
+        : Drawable(_x, _y, _w, _h), r(_r), g(_g), b(_b),  // Remove the y offset from constructor
           speedFactor(1.0f + (rand() % 41) / 100.0f),
-          current_speed(USER_CAR_SPEED_BASE * speedFactor),
-          isHonking(false), honkTimer(0) {}
+          current_speed(0.0f),
+          target_speed(USER_CAR_SPEED_BASE * speedFactor),
+          acceleration_rate(0.15f),
+          deceleration_rate(0.25f),
+          type(_type) {}
 
     virtual void draw() override = 0;
     virtual ~Vehicle() = default;
 
-    void honk() { if (!isHonking) { isHonking = true; honkTimer = 45; } }
-    void updateHonk() { if (isHonking && honkTimer > 0) { honkTimer--; if (honkTimer == 0) isHonking = false; } }
+    void updateSpeed() {
+        if (current_speed < target_speed) {
+            // Accelerate
+            current_speed = std::min(current_speed + acceleration_rate, target_speed);
+        } else if (current_speed > target_speed) {
+            // Decelerate
+            current_speed = std::max(current_speed - deceleration_rate, target_speed);
+        }
+    }
+
+    void updateHonk() {
+        // Only honk if vehicle is both stopped and blocked
+        if (current_speed < 0.1f && isBlocked) {
+            if (honkTimer <= 0) {
+                // Time to honk
+                isHonking = true;
+                honkTimer = HONK_INTERVAL;
+                honkDuration = HONK_DURATION_MAX;
+                // Play honk sound
+                std::string soundToPlay;
+                switch (type) {
+                    case VehicleType::CAR: soundToPlay = "car"; break;
+                    case VehicleType::TRUCK: soundToPlay = "truck"; break;
+                    case VehicleType::BUS: soundToPlay = "bus"; break;
+                    default: soundToPlay = "car";
+                }
+                audioManager.playSound(soundToPlay, false);
+            } else {
+                honkTimer--;
+            }
+        } else {
+            // Reset honk timer and state when moving or not blocked
+            honkTimer = HONK_INTERVAL;
+            isHonking = false;
+            honkDuration = 0;
+        }
+
+        // Update honk visual effect
+        if (isHonking && honkDuration > 0) {
+            honkDuration--;
+            if (honkDuration <= 0) {
+                isHonking = false;
+            }
+        }
+    }
 
     bool update() {
-        float targetSpeed = USER_CAR_SPEED_BASE * speedFactor;
-        current_speed = targetSpeed;
+        target_speed = USER_CAR_SPEED_BASE * speedFactor;  // Set target speed based on vehicle type
 
         bool stoppedByLight = false;
         if (trafficSignal->lightState == TrafficLightState::RED || trafficSignal->yellowLightOn) {
             if (x + width < CAR_STOP_LINE_X + 5.0f &&
-                x + width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + width * 0.5f)) {
-                current_speed = 0;
+                x + width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + width)) {
+                target_speed = 0;
                 stoppedByLight = true;
+                if (DEBUG_ON) {
+                    debugCalls.push_back([=]() {
+                        std::string debugText = "Stopped by Light at (" + std::to_string(x) + ", " + std::to_string(y) + ")";
+                        drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
+                    });
+                }
             }
         }
 
@@ -1144,13 +1244,21 @@ public:
                 if (fabs(y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD) {
                     if (v2->x > x) {
                         float distance = v2->x - (x + width);
-                        if (distance < MIN_CAR_SPACING_AHEAD) {
-                            if (v2->current_speed < current_speed) {
-                                current_speed = v2->current_speed;
+                        float minSpacing = std::max(MIN_CAR_SPACING_AHEAD, width * 0.5f);
+                        
+                        if (distance < minSpacing) {
+                            if (v2->current_speed < target_speed) {
+                                target_speed = v2->current_speed;
                             }
-                            if (distance < 2.0f || (v2->current_speed < 0.1f && distance < MIN_CAR_SPACING_AHEAD * 0.75f)) {
-                                current_speed = 0;
+                            if (distance < width * 0.25f || (v2->current_speed < 0.1f && distance < minSpacing * 0.75f)) {
+                                target_speed = 0;
                                 blockedByVehicleAhead = true;
+                                if (DEBUG_ON) {
+                                    debugCalls.push_back([=]() {
+                                        std::string debugText = "Blocked by Vehicle Ahead at (" + std::to_string(v2->x) + ", " + std::to_string(v2->y) + ")";
+                                        drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
+                                    });
+                                }
                             }
                         }
                     }
@@ -1168,7 +1276,14 @@ public:
                     if (ped->state == HumanState::CROSSING_ROAD) {
                         if (checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
                             blockedByHuman = true;
-                            current_speed = 0;
+                            target_speed = 0;  // Set target speed to 0 instead of directly setting current_speed
+                            //draw debug text whick caused block
+                            if (DEBUG_ON) {  // Removed !scenePaused check
+                                debugCalls.push_back([=]() {
+                                    std::string debugText = "Blocked by Human at (" + std::to_string(ped->x) + ", " + std::to_string(ped->y) + ")";
+                                    drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
+                                });
+                            }
                             break;
                         }
                     }
@@ -1176,14 +1291,30 @@ public:
             }
         }
         
-        if (stoppedByLight || blockedByVehicleAhead || blockedByHuman) {
-            current_speed = 0;
-        }
+        bool collisionDetectedThisFrame = stoppedByLight || blockedByVehicleAhead || blockedByHuman;
+        isBlocked = collisionDetectedThisFrame;  // Update isBlocked state
 
+        if (collisionDetectedThisFrame) {
+            target_speed = 0;
+            if (!isCurrentlyColliding) {
+                // Collision just started, play sound
+                std::string soundToPlay;
+                switch (type) {
+                    case VehicleType::CAR: soundToPlay = "car"; break;
+                    case VehicleType::TRUCK: soundToPlay = "truck"; break;
+                    case VehicleType::BUS: soundToPlay = "bus"; break;
+                    default: soundToPlay = "car";
+                }
+                audioManager.playSound(soundToPlay, false);
+            }
+        }
+        
+        isCurrentlyColliding = collisionDetectedThisFrame;
+
+        updateSpeed();
         x += current_speed;
         updateHonk();
 
-        // Return true if vehicle should be removed
         return x > WINDOW_WIDTH + 100;
     }
 };
@@ -1195,13 +1326,13 @@ public:
 class Car : public Vehicle {
 public:
     Car(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Vehicle(_x, _y, _w, _h, _r, _g, _b) {
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::CAR) {
         // Cars maintain normal speed (speedFactor is already set in base class)
     }
 
     void draw() override {
-        drawModernCar(x, y, width, height, r, g, b, isNight, current_speed);
-        if (DEBUG_ON && !scenePaused) {
+        drawModernCar(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
+        if (DEBUG_ON) {  // Removed !scenePaused check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
             drawBound(b.x, b.y, b.w, b.h);
@@ -1212,15 +1343,17 @@ public:
 class Truck : public Vehicle {
 public:
     Truck(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Vehicle(_x, _y, _w, _h, _r, _g, _b) {
-        // Trucks are 10% slower
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::TRUCK) {
+        // Trucks are slower and have slower acceleration/deceleration
         speedFactor *= 0.9f;
-        current_speed = USER_CAR_SPEED_BASE * speedFactor;
+        target_speed = USER_CAR_SPEED_BASE * speedFactor;
+        acceleration_rate *= 0.7f;  // Trucks accelerate slower
+        deceleration_rate *= 0.7f;  // Trucks decelerate slower
     }
 
     void draw() override {
-        drawTruck(x, y, width, height, r, g, b, isNight, current_speed);
-        if (DEBUG_ON && !scenePaused) {
+        drawTruck(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
+        if (DEBUG_ON) {  // Removed !scenePaused check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
             drawBound(b.x, b.y, b.w, b.h);
@@ -1231,33 +1364,21 @@ public:
 class Bus : public Vehicle {
 public:
     Bus(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
-        : Vehicle(_x, _y, _w, _h, _r, _g, _b) {
-        // Buses are 20% slower
-        speedFactor *= 0.8f;
-        current_speed = USER_CAR_SPEED_BASE * speedFactor;
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::BUS) {
+        // Buses have even slower acceleration/deceleration
+        acceleration_rate *= 0.6f;  // Buses accelerate even slower
+        deceleration_rate *= 0.6f;  // Buses decelerate even slower
     }
 
     void draw() override {
-        drawBus(x, y, width, height, r, g, b, isNight, current_speed);
-        if (DEBUG_ON && !scenePaused) {
+        drawBus(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
+        if (DEBUG_ON) {  // Removed !scenePaused check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
             drawBound(b.x, b.y, b.w, b.h);
         }
     }
 };
-
-// Prototypes for functions that are defined later
-void drawText(float x, float y, const char* text, float scale = 0.7f) {
-    glPushMatrix();
-    glTranslatef(x, y, 0.0f);
-    glScalef(scale, scale, 1.0f);
-    glRasterPos2f(0, 0);
-    for (const char* p = text; *p; p++) {
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *p);
-    }
-    glPopMatrix();
-}
 
 unsigned short HumansWaitingToCross() {
     unsigned short count = 0;
@@ -1374,7 +1495,6 @@ class Building : public Drawable {
             : Drawable(_x, _y, _width, _height) {}
         virtual void draw() = 0;
 };
-
 class ModernBuilding : public Building {
     public:
         ModernBuilding(float _x, float _y, float _width, float _height) 
@@ -1644,29 +1764,108 @@ class StreetLamp : public Drawable {
 public:
     StreetLamp(float x, float y) : Drawable(x, y, 36, 120) {}
     void draw() override {
+        glPushMatrix();
+        glTranslatef(x, y, 0);
+
+        // Draw the pole with a gradient effect
+        glBegin(GL_QUADS);
+        // Darker shade at the bottom
+        glColor3f(0.3f, 0.3f, 0.3f);
+        glVertex2f(-4, 0);
+        glVertex2f(4, 0);
+        // Lighter shade at the top
         glColor3f(0.5f, 0.5f, 0.5f);
-        glBegin(GL_QUADS);
-        glVertex2f(x - 3, y);
-        glVertex2f(x + 3, y);
-        glVertex2f(x + 3, y + 120);
-        glVertex2f(x - 3, y + 120);
+        glVertex2f(4, 120);
+        glVertex2f(-4, 120);
         glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(x, y + 120);
-        glVertex2f(x + 30, y + 120);
-        glVertex2f(x + 30, y + 115);
-        glVertex2f(x, y + 115);
-        glEnd();
-        if (isNight) {
-            glColor3f(1.0f, 1.0f, 0.7f);
-            drawCircle(x + 30, y + 110, 10);
-            glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
-            drawCircle(x + 30, y + 110, 16);
-            glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-        } else {
-            glColor3f(0.6f, 0.6f, 0.5f);
-            drawCircle(x + 30, y + 110, 8);
+
+        // Draw decorative rings around the pole
+        glColor3f(0.4f, 0.4f, 0.4f);
+        for (int i = 0; i < 3; i++) {
+            float y_pos = 30 + i * 30;
+            drawRect(-5, y_pos, 10, 2);
         }
+
+        // Draw the arm with a modern curved design
+        glColor3f(0.4f, 0.4f, 0.4f);
+        // Main arm
+        glBegin(GL_QUADS);
+        glVertex2f(0, 115);
+        glVertex2f(35, 115);
+        glVertex2f(35, 110);
+        glVertex2f(0, 110);
+        glEnd();
+
+        // Curved end of the arm
+        glBegin(GL_QUADS);
+        glVertex2f(35, 115);
+        glVertex2f(40, 110);
+        glVertex2f(40, 105);
+        glVertex2f(35, 110);
+        glEnd();
+
+        // Draw the lamp housing
+        glColor3f(0.2f, 0.2f, 0.2f);
+        // Main housing
+        glBegin(GL_QUADS);
+        glVertex2f(35, 105);
+        glVertex2f(45, 105);
+        glVertex2f(45, 95);
+        glVertex2f(35, 95);
+        glEnd();
+
+        // Bottom part of housing
+        glBegin(GL_QUADS);
+        glVertex2f(38, 95);
+        glVertex2f(42, 95);
+        glVertex2f(42, 90);
+        glVertex2f(38, 90);
+        glEnd();
+
+        if (isNight) {
+            // Draw the light source with multiple layers of glow
+            // Outer glow (largest, most transparent)
+            glColor4f(1.0f, 0.95f, 0.8f, 0.15f);
+            drawCircle(40, 100, 25);
+
+            // Middle glow
+            glColor4f(1.0f, 0.95f, 0.8f, 0.3f);
+            drawCircle(40, 100, 15);
+
+            // Inner glow (brightest)
+            glColor4f(1.0f, 0.95f, 0.8f, 0.5f);
+            drawCircle(40, 100, 8);
+
+            // Light source
+            glColor3f(1.0f, 0.95f, 0.8f);
+            drawCircle(40, 100, 5);
+
+            // Draw light beam effect
+            glColor4f(1.0f, 0.95f, 0.8f, 0.2f);
+            glBegin(GL_TRIANGLES);
+            glVertex2f(40, 90);  // Start from bottom of lamp
+            glVertex2f(20, 0);  // Left edge of beam, moved down
+            glVertex2f(60, 0);  // Right edge of beam, moved down
+            glEnd();
+
+            // Add some light reflection on the ground
+            glColor4f(1.0f, 0.95f, 0.8f, 0.1f);
+            drawCircle(40, 0, 25); // Adjusted y and radius for larger reflection
+        } else {
+            // Draw the lamp when off
+            glColor3f(0.6f, 0.6f, 0.5f);
+            drawCircle(40, 100, 5);
+        }
+
+        // Add some decorative details
+        glColor3f(0.3f, 0.3f, 0.3f);
+        // Small decorative elements on the arm
+        for (int i = 0; i < 3; i++) {
+            float x_pos = 10 + i * 10;
+            drawRect(x_pos, 112, 2, 6);
+        }
+
+        glPopMatrix();
     }
 };
 
@@ -1682,8 +1881,8 @@ void spawnNewVehicle() {
         spawnH = 35.0f;  // Increased from 28
     } else if (typeRoll < 13) {
         type = VehicleType::TRUCK;
-        spawnW = 120.0f; // Increased from 90
-        spawnH = 45.0f;  // Increased from 35
+        spawnW = 150.0f; // Increased for larger trucks
+        spawnH = 60.0f;  // Increased for larger trucks
     } else {
         type = VehicleType::BUS;
         spawnW = 160.0f; // Increased from 120
@@ -1881,36 +2080,46 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
     }
 
     // Draw debug bounding box for zebra crossing area
-    if (DEBUG_ON && !scenePaused) {
+    if (DEBUG_ON) {  // Removed !scenePaused check
         // Main crossing area
         glColor3f(1.0f, 0.0f, 1.0f);  // Magenta color for zebra crossing debug box
         drawBound(crossing_area_x_start, road_y_bottom, crossing_area_width, road_y_top - road_y_bottom);
         // Label for main crossing area
         glColor3f(1.0f, 0.0f, 1.0f);
-        drawText(crossing_area_x_start, road_y_top + 10, "Main Crossing Area", 0.5f);
+        debugCalls.push_back([=]() {
+            drawText(crossing_area_x_start, road_y_top + 10, "Main Crossing Area", 0.5f);
+        });
         // Show human count
         char humanCountText[64];
         snprintf(humanCountText, sizeof(humanCountText), "Humans waiting: %d", HumansWaitingToCross());
-        drawText(crossing_area_x_start, road_y_top + 25, humanCountText, 0.5f);
+        debugCalls.push_back([=]() {
+            drawText(crossing_area_x_start, road_y_top + 25, humanCountText, 0.5f);
+        });
 
         // Extended waiting area (20 units on each side)
         glColor3f(1.0f, 0.5f, 1.0f);  // Lighter magenta for extended area
         drawBound(crossing_area_x_start - DISTANCE_TO_STOP_FROM_SIGNAL, road_y_bottom, crossing_area_width + DISTANCE_TO_STOP_FROM_SIGNAL * 2, road_y_top - road_y_bottom);
         // Label for extended waiting area
         glColor3f(1.0f, 0.5f, 1.0f);
-        drawText(crossing_area_x_start - 20.0f, road_y_top + 40, "Extended Waiting Area", 0.5f);
+        debugCalls.push_back([=]() {
+            drawText(crossing_area_x_start - DISTANCE_TO_STOP_FROM_SIGNAL, road_y_top + 40, "Extended Waiting Area", 0.5f);
+        });
 
         // Car priority area
         glColor3f(0.0f, 1.0f, 0.5f);  // Light green for car priority area
         drawBound(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_bottom, CAR_PRIORITY_THRESHOLD, road_y_top - road_y_bottom);
         // Label for car priority area
         glColor3f(0.0f, 1.0f, 0.5f);
-        drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD / 2, road_y_top + 55, "Car Priority Area", 0.5f);
+        debugCalls.push_back([=]() {
+            drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 55, "Car Priority Area", 0.5f);
+        });
         // Show car count
         char carCountText[64];
         snprintf(carCountText, sizeof(carCountText), "Cars in area: %d", countCarsNearCrossing());
         glColor3f(0.0f, 1.0f, 0.5f);
-        drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 70, carCountText, 0.5f);
+        debugCalls.push_back([=]() {
+            drawText(crossing_area_x_start - CAR_PRIORITY_THRESHOLD, road_y_top + 70, carCountText, 0.5f);
+        });
     }
 }
 
@@ -1941,10 +2150,33 @@ void drawSceneObjects() {
     drawableObjects.push_back(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START - 2));  // -2 from original
 
     // Add street lamps as objects
-    drawableObjects.push_back(std::make_shared<StreetLamp>(80, SIDEWALK_TOP_Y_START));
-    drawableObjects.push_back(std::make_shared<StreetLamp>(380, SIDEWALK_TOP_Y_START));
-    drawableObjects.push_back(std::make_shared<StreetLamp>(780, SIDEWALK_TOP_Y_START));
-    drawableObjects.push_back(std::make_shared<StreetLamp>(950, SIDEWALK_BOTTOM_Y_START));
+    const int numLamps = 3; // Define N here, you can change this value
+    float spacing;
+    float startX;
+
+    if (numLamps > 1) {
+        // Spread lamps over 80% of the window width, centered.
+        float effectiveSpreadWidth = WINDOW_WIDTH * 0.8f; 
+        spacing = effectiveSpreadWidth / (numLamps - 1.0f);
+        startX = (WINDOW_WIDTH / 2.0f) - (effectiveSpreadWidth / 2.0f);
+
+    } else { // numLamps == 1
+        spacing = 0.0f; // No spacing needed for a single lamp
+        startX = WINDOW_WIDTH / 2.0f; // Place single lamp in the center
+    }
+
+    // Upper sidewalk lamps
+    for (int i = 0; i < numLamps; ++i) {
+        float lampX = startX + i * spacing;
+        drawableObjects.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START));
+    }
+
+    // Lower sidewalk lamps with a phase shift
+    const float phaseShift = 50.0f; // The amount of phase shift
+    for (int i = 0; i < numLamps; ++i) {
+        float lampX = startX + i * spacing + phaseShift;
+        drawableObjects.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END));
+    }
 
     // Add traffic signal as an object
     drawableObjects.push_back(trafficSignal);
@@ -2200,6 +2432,9 @@ void display()
         drawText(TRAFFIC_LIGHT_X - 100, SIDEWALK_TOP_Y_START + 180, "People are still passing the road", 0.7f);
     }
 
+    // Draw debug overlay last to ensure it's on top
+    drawDebugOverlay();
+    
     glDisable(GL_BLEND);
     glutSwapBuffers();
 }
@@ -2258,8 +2493,10 @@ void keyboard(unsigned char key, int x, int y) {
             // Toggle background traffic sound
             if (audioManager.isPlaying("traffic")) {
                 audioManager.stopSound("traffic");
+                audioManager.stopSound("people");
             } else {
                 audioManager.playSound("traffic", true);
+                audioManager.playSound("people", true);
             }
             break;
         case 27: // ESC key
@@ -2332,9 +2569,16 @@ void init()
     } else {
         // Load sounds - replace paths with your actual sound files
         audioManager.loadSound("traffic", "D:/dev/OpenGL/man_walk/audio/traffic.wav"); // Use forward slashes or escaped backslashes
-        //audioManager.loadSound("honk", "path/to/honk.wav");
+        audioManager.loadSound("people", "D:/dev/OpenGL/man_walk/audio/people.wav");
+        //car
+        audioManager.loadSound("car", "D:/dev/OpenGL/man_walk/audio/car.wav");
+        //bus
+        audioManager.loadSound("bus", "D:/dev/OpenGL/man_walk/audio/bus.wav");
+        //truck
+        audioManager.loadSound("truck", "D:/dev/OpenGL/man_walk/audio/truck.wav");
         // Start playing background traffic sound
         audioManager.playSound("traffic", true);  // true for looping
+        audioManager.playSound("people", true);
     }
 }
 
