@@ -2866,35 +2866,18 @@ public:
     }
 };
 
-// --- Rock Class ---
-class Rock : public Drawable {
-private:
-    float scale;
-public:
-    Rock(float x, float y, float scl) : Drawable(x, y, 25 * scl, 15 * scl), scale(scl) {}
-
-    void draw() override {
-        // Draw an irregular polygon for the main rock shape
-        setObjectColor(0.5f, 0.5f, 0.55f); // Grey rock color
-        glBegin(GL_POLYGON);
-            glVertex2f(x, y);
-            glVertex2f(x + 20 * scale, y - 5 * scale);
-            glVertex2f(x + 30 * scale, y + 5 * scale);
-            glVertex2f(x + 25 * scale, y + 15 * scale);
-            glVertex2f(x + 10 * scale, y + 20 * scale);
-            glVertex2f(x - 5 * scale, y + 10 * scale);
-        glEnd();
-
-        // Add a darker line for a shadow/crack detail
-        setObjectColor(0.4f, 0.4f, 0.45f);
-        drawLine(x + 10 * scale, y + 20 * scale, x + 20 * scale, y - 5 * scale, 2.0f);
-    }
-
-    void update() override {
+void initGroundDecorator() {
+    for (int i = 0; i < 6; ++i) {  // Total number of bushes
+        // Random x position across the screen width
+        float x = 80.0f + (rand() % (WINDOW_WIDTH - 160));  // Keep away from edges
         
+        // Random y position in either ground area
+        float y = SIDEWALK_BOTTOM_Y_START - (40.0f + (rand() % 80));  // Bottom ground, 40-120 units below sidewalk
+        
+        float scale = 1.0f + (rand() % 3) / 10.0f;  // Random scale between 1.0 and 1.3
+        drawableObjects.push_back(std::make_shared<Bush>(x, y, scale));
     }
-};
-
+}
 
 void drawGround() {
     setObjectColor(0.35f, 0.7f, 0.25f); // green ground
@@ -3477,6 +3460,8 @@ void init()
     initStreetLamps();
 
     initRoadDecorators();
+
+    initGroundDecorator();  // Initialize ground decorations
 
     // Initialize audio system
     initAudio();
