@@ -285,7 +285,7 @@ const float HUMAN_CROSSING_X_START = TRAFFIC_LIGHT_X + 35.0f;
 const float HUMAN_CROSSING_WIDTH = 70.0f;
 const float HUMAN_CROSSING_CENTER_X = HUMAN_CROSSING_X_START + HUMAN_CROSSING_WIDTH / 2.0f;
 
-const float MIN_CAR_SPACING_AHEAD = 20.0f;
+const float MIN_CAR_SPACING_AHEAD = 60.0f;
 const float MIN_CAR_SPAWN_DISTANCE = 300.0f;
 const float CAR_SAME_LANE_Y_THRESHOLD = 5.0f;
 const float HUMAN_SAFETY_BUFFER = 3.0f;
@@ -299,9 +299,9 @@ bool isNight = false;
 unsigned char frameCount = 0;
 
 // Scene State
-bool scenePaused = false;
+bool IS_PAUSED = false;
 bool DEBUG_ON = false;
-bool backgroundMusicDesired = true;
+bool MUSIC_ON = true;
 
 bool showWarningMessage = false;
 int lastCarSpawnTime = 0;
@@ -310,8 +310,6 @@ int lastHumanSpawnTime = 0;
 // Enums for Traffic and Pedestrian Lights
 enum class TrafficLightState { RED, GREEN };
 enum class VehicleType { CAR, TRUCK, BUS };
-
-TrafficLightState lightState = TrafficLightState::GREEN;
 
 // Add these constants near the top with other constants
 const float CAR_PRIORITY_THRESHOLD = 450.0f;  // Distance to check for cars
@@ -341,6 +339,71 @@ enum class HairStyle {
 struct Rect {
     float x, y, w, h;
 };
+
+// Struct to manage animated smoke particles
+struct SmokeParticle {
+    float x, y;
+    float size;
+    float alpha; // For fading out
+    float x_drift; // Sideways movement
+};
+
+// A new helper function to apply night-time darkness to objects
+// A new helper function to apply night-time darkness to objects
+void setObjectColor(float r, float g, float b, bool isLightSource = false) {
+    // Light sources are not affected by the ambient light level.
+    if (isLightSource) {
+        glColor3f(r, g, b);
+        return;
+    }
+
+    // Define the brightness levels for day and night
+    const float dayLightLevel = 1.0f;
+    const float nightLightLevel = 0.5f; // How dark objects get at night
+
+    // Define the time periods for the transitions, matching the sky's cycle
+    const float dawnStartTime = 0.18f;
+    const float dawnEndTime = 0.28f;
+    const float duskStartTime = 0.62f;
+    const float duskEndTime = 0.72f;
+
+    float currentLightLevel;
+
+    if (currentTimeOfDay >= duskStartTime && currentTimeOfDay < duskEndTime) {
+        // --- Fading to Night (Dusk) ---
+        // Calculate how far we are into the dusk transition (a value from 0.0 to 1.0)
+        float transitionProgress = (currentTimeOfDay - duskStartTime) / (duskEndTime - duskStartTime);
+        // Interpolate from day brightness to night brightness
+        currentLightLevel = dayLightLevel - (dayLightLevel - nightLightLevel) * transitionProgress;
+
+    } else if (currentTimeOfDay >= duskEndTime || currentTimeOfDay < dawnStartTime) {
+        // --- Full Night ---
+        currentLightLevel = nightLightLevel;
+
+    } else if (currentTimeOfDay >= dawnStartTime && currentTimeOfDay < dawnEndTime) {
+        // --- Fading to Day (Dawn) ---
+        // Calculate how far we are into the dawn transition
+        float transitionProgress = (currentTimeOfDay - dawnStartTime) / (dawnEndTime - dawnStartTime);
+        // Interpolate from night brightness to day brightness
+        currentLightLevel = nightLightLevel + (dayLightLevel - nightLightLevel) * transitionProgress;
+
+    } else {
+        // --- Full Day ---
+        currentLightLevel = dayLightLevel;
+    }
+
+    // Apply the final calculated color, clamping to ensure values don't go out of bounds
+    glColor3f(
+        std::max(0.0f, r * currentLightLevel),
+        std::max(0.0f, g * currentLightLevel),
+        std::max(0.0f, b * currentLightLevel)
+    );
+}
+
+// Overload for the Color struct for convenience
+void setObjectColor(const Color& c, bool isLightSource = false) {
+    setObjectColor(c.r, c.g, c.b, isLightSource);
+}
 
 class Drawable {
 public:
@@ -426,11 +489,11 @@ void drawModernCar(float x, float y, float width, float height, float r, float g
     glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
 
     // Body
-    glColor3f(r, g, b);
+    setObjectColor(r, g, b);
     drawRect(x, y, width, height * 0.6f);
 
     // Roof and Windows
-    glColor3f(0.6f, 0.8f, 0.9f); // Light blue for windows
+    setObjectColor(0.6f, 0.8f, 0.9f);
     glBegin(GL_QUADS);
     glVertex2f(x + width * 0.15f, y + height * 0.6f);
     glVertex2f(x + width * 0.85f, y + height * 0.6f);
@@ -439,7 +502,7 @@ void drawModernCar(float x, float y, float width, float height, float r, float g
     glEnd();
 
     // Window outlines
-    glColor3f(0.1f, 0.1f, 0.1f);
+    setObjectColor(0.1f, 0.1f, 0.1f);
     glLineWidth(2.0f);
     glBegin(GL_LINE_LOOP);
     glVertex2f(x + width * 0.15f, y + height * 0.6f);
@@ -450,7 +513,7 @@ void drawModernCar(float x, float y, float width, float height, float r, float g
     drawLine(x + width * 0.5f, y + height * 0.6f, x + width * 0.5f, y + height);
 
     // Wheels - draw them at y - VEHICLE_WHEEL_OFFSET
-    glColor3f(0.1f, 0.1f, 0.1f); // Tire
+    setObjectColor(0.1f, 0.1f, 0.1f);
     drawCircle(x + width * 0.25f, y, height * 0.25f);
     drawCircle(x + width * 0.75f, y, height * 0.25f);
     glColor3f(0.7f, 0.7f, 0.7f); // Rim
@@ -484,16 +547,16 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
     glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
     
     // --- Chassis and Cargo connection
-    glColor3f(0.0f, 0.0f, 0.0f);
+    setObjectColor(0.0f, 0.0f, 0.0f);
     drawLine(x + width * 0.65f, y + height * 0.2f, x + width * 0.65f, y + height * 0.8f, 6.0f);
 
     // --- Cargo Bed (Container Style) ---
-    glColor3f(r * 0.8f, g * 0.8f, b * 0.8f); // Slightly darker shade for the container
+    setObjectColor(r * 0.8f, g * 0.8f, b * 0.8f);
     float containerWidth = width * 0.68f;
     float containerHeight = height * 0.9f;
     drawRect(x - 3, y + 5, containerWidth, containerHeight);
     // Add some vertical lines for detail on the container
-    glColor3f(r * 0.7f, g * 0.7f, b * 0.7f);
+    setObjectColor(r * 0.7f, g * 0.7f, b * 0.7f);
     glLineWidth(2.0f);
     for(int i=1; i<4; ++i){
         drawLine(x + containerWidth * (i/4.0f), y + 5, x + containerWidth * (i/4.0f), y + 5 + containerHeight);
@@ -503,7 +566,7 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
     // --- Cab ---
     float cabWidth = width - containerWidth;
     float cabX = x + containerWidth;
-    glColor3f(r, g, b); // Main cab color
+    setObjectColor(r, g, b);
     glBegin(GL_QUADS);
     glVertex2f(cabX, y + 5);
     glVertex2f(cabX + cabWidth, y + 5);
@@ -513,7 +576,7 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
 
 
     // --- Cab Window ---
-    glColor3f(0.6f, 0.8f, 0.9f); // Light blue window color
+    setObjectColor(0.6f, 0.8f, 0.9f);
     glBegin(GL_POLYGON);
     glVertex2f(cabX + cabWidth * 0.5f, y + height * 0.42f);
     glVertex2f(cabX + cabWidth * 1.0f, y + height * 0.42f);
@@ -523,19 +586,19 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
 
 
     // --- Details: Fuel tank and exhaust ---
-    glColor3f(0.5f, 0.5f, 0.5f); // Grey for fuel tank
+    setObjectColor(0.5f, 0.5f, 0.5f);
     drawRect(x + containerWidth - 25, y + 5, 20, 10);
-    glColor3f(0.3f, 0.3f, 0.3f); // Dark for exhaust
+    setObjectColor(0.3f, 0.3f, 0.3f);
     drawRect(cabX + cabWidth * 0.1f, y + height - 4, 3, 10); // Vertical exhaust pipe
 
 
     // --- Wheels (3 sets) ---
     float wheelRadius = height * 0.2f;
-    glColor3f(0.1f, 0.1f, 0.1f); // Tire
+    setObjectColor(0.1f, 0.1f, 0.1f);
     drawCircle(x + width * 0.15f, y + wheelRadius, wheelRadius);
     drawCircle(x + width * 0.35f, y + wheelRadius, wheelRadius);
     drawCircle(x + width * 0.85f, y + wheelRadius, wheelRadius);
-    glColor3f(0.7f, 0.7f, 0.7f); // Rim
+    setObjectColor(0.7f, 0.7f, 0.7f);
     drawCircle(x + width * 0.15f, y + wheelRadius, wheelRadius * 0.6f);
     drawCircle(x + width * 0.35f, y + wheelRadius, wheelRadius * 0.6f);
     drawCircle(x + width * 0.85f, y + wheelRadius, wheelRadius * 0.6f);
@@ -556,7 +619,7 @@ void drawTruck(float x, float y, float width, float height, float r, float g, fl
         drawCircle(x + width, y + height * 0.2f, 25.0f);
         glColor3f(1.0f, 1.0f, 0.8f); // Light source
     } else {
-        glColor3f(0.9f, 0.9f, 0.9f); // Turned off light
+        setObjectColor(0.9f, 0.9f, 0.9f);
     }
     
     drawRect(x + width - 5, y + height * 0.2f, 5, 5);
@@ -570,11 +633,11 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
     glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
 
     // Main Body
-    glColor3f(r, g, b);
+    setObjectColor(r, g, b);
     drawRect(x, y, width, height);
 
     // Windows
-    glColor3f(0.2f, 0.2f, 0.3f); // Dark windows
+    setObjectColor(0.2f, 0.2f, 0.3f);
     float windowHeight = height * 0.4f;
     float windowY = y + height * 0.4f;
     float windowWidth = width * 0.12f;
@@ -585,7 +648,7 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
     }
 
     // Wheels - draw them at y - VEHICLE_WHEEL_OFFSET
-    glColor3f(0.1f, 0.1f, 0.1f);
+    setObjectColor(0.1f, 0.1f, 0.1f);
     drawCircle(x + width * 0.2f, y, height * 0.25f);
     drawCircle(x + width * 0.8f, y, height * 0.25f);
     glColor3f(0.7f, 0.7f, 0.7f);
@@ -603,7 +666,7 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
         drawCircle(x + width, y + height * 0.25f, 30.0f);
         glColor3f(1.0f, 1.0f, 0.8f);
     } else {
-        glColor3f(0.9f, 0.9f, 0.9f);
+        setObjectColor(0.9f, 0.9f, 0.9f);
     }
     drawRect(x + width - 5, y + height * 0.25f, 4, 4);
 
@@ -657,7 +720,7 @@ public:
     bool yellowLightOn;
     const int YELLOW_BLINK_INTERVAL = 15;
     TrafficSignal(float x, float y) : Drawable(x, y, 20, 60) {
-        lightState = TrafficLightState::RED;
+        lightState = TrafficLightState::GREEN;
         yellowLightOn = false;
     }
 
@@ -712,13 +775,13 @@ public:
             }
 
             // Draw triangle shapes on each side
-            glColor3f(0.0f, 0.0f, 0.0f);
+            setObjectColor(0.0f, 0.0f, 0.0f);
             drawTriangle(x + translateX, centerY + translateY, x + translateX - 10, centerY + translateY, x + translateX, centerY - 10 + translateY);
             drawTriangle(x + translateX + width, centerY + translateY, x + translateX + width + 10, centerY + translateY, x + translateX + width, centerY - 10 + translateY);
         }
 
         // Draw the main black signal box
-        glColor3f(0.0f, 0.0f, 0.0f);
+        setObjectColor(0.0f, 0.0f, 0.0f);
         drawRect(x + translateX, y + translateY - 8, width, height);
         
         // Draw the pole (originally missing)
@@ -973,7 +1036,7 @@ public:
         const float hipY = torsoBottom, hipX = torsoWidth / 4;
 
         // --- ARMS ---
-        glColor3f(skinColor.r, skinColor.g, skinColor.b);
+        setObjectColor(skinColor.r, skinColor.g, skinColor.b);
         // Left Arm
         glPushMatrix();
         glTranslatef(shoulderX, shoulderY, 0.0f);
@@ -987,7 +1050,7 @@ public:
 
         // --- LEGS ---
         glPushMatrix();
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
+        setObjectColor(pantsColor.r, pantsColor.g, pantsColor.b);
         // Left Leg
         glPushMatrix();
         glTranslatef(hipX + 0.01f, hipY + 0.02f, 0.0f);
@@ -997,12 +1060,12 @@ public:
         glTranslatef(0, -0.13f, 0);
         glRotatef(std::max(0.0f, -legAngle * 0.5f), 0, 0, 1);
         drawLine(0, 0, 0, -0.06f, 5.0f); // Explicitly set thickness
-        glColor3f(0.1f, 0.1f, 0.1f);
+        setObjectColor(0.1f, 0.1f, 0.1f);
         drawRect(-0.01f, -0.06f, 0.04f, 0.02f, -0.04f / 2.0f, -0.02f / 2.0f); // Corrected x-coordinate
         glPopMatrix();
         // Right Leg
         glPushMatrix();
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
+        setObjectColor(pantsColor.r, pantsColor.g, pantsColor.b);
         glTranslatef(-hipX - 0.01f, hipY + 0.02f, 0.0f);
         if(direction == 0 || direction == 1) glRotatef(legAngle, 0, 0, 1);
         else glTranslatef(0.0f, legLift, 0.0f);
@@ -1010,17 +1073,17 @@ public:
         glTranslatef(0, -0.13f, 0);
         glRotatef(std::max(0.0f, legAngle * 0.5f), 0, 0, 1);
         drawLine(0, 0, 0, -0.06f, 5.0f); // Explicitly set thickness
-        glColor3f(0.1f, 0.1f, 0.1f);
+        setObjectColor(0.1f, 0.1f, 0.1f);
         drawRect(-0.01f, -0.06f, 0.04f, 0.02f, -0.04f / 2.0f, -0.02f / 2.0f); // Corrected x-coordinate
         glPopMatrix();
         glPopMatrix();
 
         // --- TORSO ---
-        glColor3f(shirtColor.r, shirtColor.g, shirtColor.b);
+        setObjectColor(shirtColor.r, shirtColor.g, shirtColor.b);
         drawRect(0.0f, (torsoTop + torsoBottom) / 2, torsoWidth, torsoTop - torsoBottom, -torsoWidth / 2.0f, -(torsoTop - torsoBottom) / 2.0f);
 
         // --- PANT TOP ---
-        glColor3f(pantsColor.r, pantsColor.g, pantsColor.b);
+        setObjectColor(pantsColor.r, pantsColor.g, pantsColor.b);
         glBegin(GL_TRIANGLE_FAN);
         glVertex2f(0.0f, hipY + 0.01f);
         for(int i = 0; i <= 180; i += 10) {
@@ -1032,10 +1095,10 @@ public:
         glEnd();
 
          // --- HEAD, FACE, and HAIR ---
-        glColor3f(skinColor.r, skinColor.g, skinColor.b);
+        setObjectColor(skinColor.r, skinColor.g, skinColor.b);
         drawCircle(0.0f, headY, headRadius, 20); // Explicitly set segments to 20
 
-        glColor3f(hairColor.r, hairColor.g, hairColor.b);
+        setObjectColor(hairColor.r, hairColor.g, hairColor.b);
         switch(hairStyle) {
             case HairStyle::Spiky:
                 if (direction == 2) { // Back View
@@ -1100,23 +1163,23 @@ public:
         }
 
         if (direction != 2) { // Eyes and face details (not for back view)
-            glColor3f(0.0f, 0.0f, 0.0f);
+            setObjectColor(0.0f, 0.0f, 0.0f);
             if (direction == 3) { // Front
                 drawCircle(-0.012f, headY + 0.01f, 0.005f, 20); drawCircle( 0.012f, headY + 0.01f, 0.005f, 20); // Explicitly set segments to 20
                 drawLine(-0.01f, headY - 0.015f, 0.01f, headY - 0.015f, 2.0f); // Explicitly set thickness
             } else { // Side
                 drawCircle(-0.015f, headY + 0.005f, 0.004f, 20); // Explicitly set segments to 20
-                glColor3f(skinColor.r, skinColor.g, skinColor.b);
+                setObjectColor(skinColor.r, skinColor.g, skinColor.b);
                 glBegin(GL_POLYGON);
                 glVertex2f(-headRadius, headY); glVertex2f(-headRadius, headY - 0.01f); glVertex2f(-headRadius - 0.01f, headY - 0.005f);
                 glEnd();
-                glColor3f(0.0f, 0.0f, 0.0f);
+                setObjectColor(0.0f, 0.0f, 0.0f);
                 drawLine(-0.015f, headY - 0.01f, -0.03f, headY - 0.01f, 2.0f); // Explicitly set thickness
             }
         }
 
         // --- Right Arm ---
-        glColor3f(skinColor.r, skinColor.g, skinColor.b);
+        setObjectColor(skinColor.r, skinColor.g, skinColor.b);
         glPushMatrix();
         glTranslatef(-shoulderX, shoulderY, 0.0f);
         glRotatef(armAngle, 0, 0, 1);
@@ -1129,7 +1192,7 @@ public:
         glPopMatrix();
 
         // Draw yellow debug bounding box in world coordinates using getBounds()
-        if (DEBUG_ON) {  // Removed !scenePaused check
+        if (DEBUG_ON) {  // Removed !IS_PAUSED check
             Rect b = getBounds();
             glColor3f(1.0f, 1.0f, 0.0f);  // Yellow
             drawBound(b.x, b.y, 25, 45, -13, -5);
@@ -1148,49 +1211,55 @@ public:
     float r, g, b;
     float speedFactor;
     float current_speed;
-    float target_speed;  // The speed we want to reach
-    float acceleration_rate;  // How fast we accelerate
-    float deceleration_rate;  // How fast we decelerate
+    float target_speed;
+    float acceleration_rate;
+    float deceleration_rate;
     VehicleType type;
-    bool isCurrentlyColliding = false;
-    bool isHonking = false;
-    int honkTimer = 0;
-    int honkDuration = 0;
-    const int HONK_INTERVAL = 120; // Honk every 2 seconds (assuming 60 FPS)
-    const int HONK_DURATION_MAX = 45;  // How long the honk visual effect lasts
-    bool isBlocked = false;  // Add this to track if vehicle is blocked
+    bool isHonking;
+    int honkTimer;
+    int honkDuration;
+    bool isBlocked;
+
+    const int MIN_HONK_INTERVAL = 90;
+    const int MAX_HONK_INTERVAL = 240;
+    const int HONK_DURATION_MAX = 45;
 
     Vehicle(float _x, float _y, float _w, float _h, float _r, float _g, float _b, VehicleType _type)
-        : Drawable(_x, _y, _w, _h), r(_r), g(_g), b(_b),  // Remove the y offset from constructor
+        : Drawable(_x, _y, _w, _h), r(_r), g(_g), b(_b),
           speedFactor(1.0f + (rand() % 41) / 100.0f),
           current_speed(0.0f),
           target_speed(USER_CAR_SPEED_BASE * speedFactor),
           acceleration_rate(0.15f),
           deceleration_rate(0.25f),
-          type(_type) {}
+          type(_type),
+          isHonking(false), honkTimer(0), honkDuration(0), isBlocked(false) {}
 
     virtual void draw() override = 0;
     virtual ~Vehicle() = default;
 
     void updateSpeed() {
         if (current_speed < target_speed) {
-            // Accelerate
             current_speed = std::min(current_speed + acceleration_rate, target_speed);
         } else if (current_speed > target_speed) {
-            // Decelerate
             current_speed = std::max(current_speed - deceleration_rate, target_speed);
         }
     }
 
     void updateHonk() {
-        // Only honk if vehicle is both stopped and blocked
+        if (honkDuration > 0) {
+            honkDuration--;
+        } else {
+            isHonking = false;
+        }
+
         if (current_speed < 0.1f && isBlocked) {
-            if (honkTimer <= 0) {
-                // Time to honk
+            if (honkTimer > 0) {
+                honkTimer--;
+            }
+            if (honkTimer <= 0 && !isHonking) {
                 isHonking = true;
-                honkTimer = HONK_INTERVAL;
                 honkDuration = HONK_DURATION_MAX;
-                // Play honk sound
+                honkTimer = MIN_HONK_INTERVAL + (rand() % (MAX_HONK_INTERVAL - MIN_HONK_INTERVAL + 1));
                 std::string soundToPlay;
                 switch (type) {
                     case VehicleType::CAR: soundToPlay = "car"; break;
@@ -1199,32 +1268,21 @@ public:
                     default: soundToPlay = "car";
                 }
                 audioManager.playSound(soundToPlay, false);
-            } else {
-                honkTimer--;
             }
         } else {
-            // Reset honk timer and state when moving or not blocked
-            honkTimer = HONK_INTERVAL;
-            isHonking = false;
-            honkDuration = 0;
-        }
-
-        // Update honk visual effect
-        if (isHonking && honkDuration > 0) {
-            honkDuration--;
-            if (honkDuration <= 0) {
-                isHonking = false;
+            if (!isBlocked) {
+                 honkTimer = 0;
             }
         }
     }
 
+    // RESTORED: This is your original update function with the debug code included.
     bool update() {
-        target_speed = USER_CAR_SPEED_BASE * speedFactor;  // Set target speed based on vehicle type
+        target_speed = USER_CAR_SPEED_BASE * speedFactor;
 
         bool stoppedByLight = false;
         if (trafficSignal->lightState == TrafficLightState::RED || trafficSignal->yellowLightOn) {
-            if (x + width < CAR_STOP_LINE_X + 5.0f &&
-                x + width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + width)) {
+            if (x + width < CAR_STOP_LINE_X + 5.0f && x + width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + width)) {
                 target_speed = 0;
                 stoppedByLight = true;
                 if (DEBUG_ON) {
@@ -1239,25 +1297,20 @@ public:
         bool blockedByVehicleAhead = false;
         if (!stoppedByLight) {
             for (const auto& v2 : vehicles) {
-                if (this == v2.get()) continue;  // Skip self
-                if (fabs(y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD) {
-                    if (v2->x > x) {
-                        float distance = v2->x - (x + width);
-                        float minSpacing = std::max(MIN_CAR_SPACING_AHEAD, width * 0.5f);
-                        
-                        if (distance < minSpacing) {
-                            if (v2->current_speed < target_speed) {
-                                target_speed = v2->current_speed;
-                            }
-                            if (distance < width * 0.25f || (v2->current_speed < 0.1f && distance < minSpacing * 0.75f)) {
-                                target_speed = 0;
-                                blockedByVehicleAhead = true;
-                                if (DEBUG_ON) {
-                                    debugCalls.push_back([=]() {
-                                        std::string debugText = "Blocked by Vehicle Ahead at (" + std::to_string(v2->x) + ", " + std::to_string(v2->y) + ")";
-                                        drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
-                                    });
-                                }
+                if (this == v2.get()) continue;
+                if (fabs(y - v2->y) < CAR_SAME_LANE_Y_THRESHOLD && v2->x > x) {
+                    float distance = v2->x - (x + width);
+                    float minSpacing = std::max(MIN_CAR_SPACING_AHEAD, width * 0.5f);
+                    if (distance < minSpacing) {
+                        target_speed = v2->current_speed < target_speed ? v2->current_speed : target_speed;
+                        if (distance < width * 0.25f || (v2->current_speed < 0.1f && distance < minSpacing * 0.75f)) {
+                            target_speed = 0;
+                            blockedByVehicleAhead = true;
+                            if (DEBUG_ON) {
+                                debugCalls.push_back([=]() {
+                                    std::string debugText = "Blocked by Vehicle Ahead at (" + std::to_string(v2->x) + ", " + std::to_string(v2->y) + ")";
+                                    drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
+                                });
                             }
                         }
                     }
@@ -1269,46 +1322,27 @@ public:
         if (!stoppedByLight && !blockedByVehicleAhead) {
             Rect vehicleNextBounds = {x + current_speed, y, width, height};
             Rect crossingAreaCheck = {HUMAN_CROSSING_X_START - width / 2.0f, ROAD_Y_BOTTOM, HUMAN_CROSSING_WIDTH + width, ROAD_Y_TOP - ROAD_Y_BOTTOM};
-
             if (checkAABBCollision(vehicleNextBounds, crossingAreaCheck)) {
                 for (const auto& ped : activeHumans) {
-                    if (ped->state == HumanState::CROSSING_ROAD) {
-                        if (checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
-                            blockedByHuman = true;
-                            target_speed = 0;  // Set target speed to 0 instead of directly setting current_speed
-                            //draw debug text whick caused block
-                            if (DEBUG_ON) {  // Removed !scenePaused check
-                                debugCalls.push_back([=]() {
-                                    std::string debugText = "Blocked by Human at (" + std::to_string(ped->x) + ", " + std::to_string(ped->y) + ")";
-                                    drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
-                                });
-                            }
-                            break;
+                    if (ped->state == HumanState::CROSSING_ROAD && checkAABBCollision(vehicleNextBounds, ped->getBounds())) {
+                        blockedByHuman = true;
+                        target_speed = 0;
+                        if (DEBUG_ON) {
+                            debugCalls.push_back([=]() {
+                                std::string debugText = "Blocked by Human at (" + std::to_string(ped->x) + ", " + std::to_string(ped->y) + ")";
+                                drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
+                            });
                         }
+                        break;
                     }
                 }
             }
         }
-        
-        bool collisionDetectedThisFrame = stoppedByLight || blockedByVehicleAhead || blockedByHuman;
-        isBlocked = collisionDetectedThisFrame;  // Update isBlocked state
 
-        if (collisionDetectedThisFrame) {
+        isBlocked = stoppedByLight || blockedByVehicleAhead || blockedByHuman;
+        if (isBlocked) {
             target_speed = 0;
-            if (!isCurrentlyColliding) {
-                // Collision just started, play sound
-                std::string soundToPlay;
-                switch (type) {
-                    case VehicleType::CAR: soundToPlay = "car"; break;
-                    case VehicleType::TRUCK: soundToPlay = "truck"; break;
-                    case VehicleType::BUS: soundToPlay = "bus"; break;
-                    default: soundToPlay = "car";
-                }
-                audioManager.playSound(soundToPlay, false);
-            }
         }
-        
-        isCurrentlyColliding = collisionDetectedThisFrame;
 
         updateSpeed();
         x += current_speed;
@@ -1331,7 +1365,7 @@ public:
 
     void draw() override {
         drawModernCar(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
-        if (DEBUG_ON) {  // Removed !scenePaused check
+        if (DEBUG_ON) {  // Removed !IS_PAUSED check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
             drawBound(b.x, b.y, b.w, b.h);
@@ -1352,7 +1386,7 @@ public:
 
     void draw() override {
         drawTruck(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
-        if (DEBUG_ON) {  // Removed !scenePaused check
+        if (DEBUG_ON) {  // Removed !IS_PAUSED check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
             drawBound(b.x, b.y, b.w, b.h);
@@ -1371,7 +1405,7 @@ public:
 
     void draw() override {
         drawBus(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
-        if (DEBUG_ON) {  // Removed !scenePaused check
+        if (DEBUG_ON) {  // Removed !IS_PAUSED check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
             drawBound(b.x, b.y, b.w, b.h);
@@ -1472,7 +1506,7 @@ void drawStars() {
     if (starAlpha > 0.0f) {
         for (auto& star : stars) {
             // Update blink phase
-            if (!scenePaused) { // Only update blink phase if scene is not paused
+            if (!IS_PAUSED) { // Only update blink phase if scene is not paused
                 star.blinkPhase += 0.05f;
                 if (star.blinkPhase > 628.0f) star.blinkPhase -= 628.0f; // 2 * PI * 100 (approx)
             }
@@ -1489,22 +1523,24 @@ void drawStars() {
         }
     }
 }
+
 // ===================================================================
-//  NEW, DYNAMIC, AND DETAILED BUILDING CLASSES
+//  NEW, DYNAMIC, AND DETAILED BUILDING & SHOP CLASSES
 // ===================================================================
 
 class Building : public Drawable {
     public:
         Building(float _x, float _y, float _width, float _height)
             : Drawable(_x, _y, _width, _height) {}
-        
+
         // Add a virtual update method to the base class
         virtual void update(unsigned int frameCount) {
             // Base implementation does nothing
         }
-        
+
         virtual void draw() = 0;
 };
+
 // A new struct to manage the complex state of each window
 struct WindowState {
     float brightness = 0.0f;  // 0.0 is unlit, 1.0 is fully lit
@@ -1520,7 +1556,7 @@ private:
 public:
     BrickBuilding(float _x, float _y, float _width, float _height)
         : Building(_x, _y, _width, _height) {
-        
+
         numWindowRows = 3;
         numWindowCols = 3;
         windowStates.resize(numWindowRows * numWindowCols);
@@ -1545,10 +1581,9 @@ public:
         }
 
         // --- Dynamic Activity During The Night ---
-        if (isNight && frameCount % 15 == 0) { // Occasionally...
-            if (rand() % 5 == 0) { // ...there's a chance...
+        if (isNight && frameCount % 15 == 0) {
+            if (rand() % 5 == 0) { 
                 int index = rand() % windowStates.size();
-                // ...to toggle a window's target state.
                 windowStates[index].isLitTarget = !windowStates[index].isLitTarget;
             }
         }
@@ -1561,12 +1596,11 @@ public:
     }
 
     void draw() override {
-        // ... (The drawing code for the building structure is the same)
         // --- Building Base ---
-        glColor3f(0.5f, 0.45f, 0.45f);
+        setObjectColor(0.5f, 0.45f, 0.45f);
         drawRect(x, y, width, 15);
         // --- Main brick facade ---
-        glColor3f(0.7f, 0.35f, 0.3f);
+        setObjectColor(0.7f, 0.35f, 0.3f);
         drawRect(x, y + 15, width, height - 25);
         // --- Brick texture lines ---
         glColor4f(0.0f, 0.0f, 0.0f, 0.15f);
@@ -1574,9 +1608,9 @@ public:
             drawLine(x, lineY, x + width, lineY);
         }
         // --- Roof ---
-        glColor3f(0.3f, 0.2f, 0.2f);
+        setObjectColor(0.3f, 0.2f, 0.2f);
         drawRect(x - 5, y + height - 10, width + 10, 10);
-        
+
         // --- NEW WINDOW DRAWING LOGIC ---
         float windowWidth = 18.0f;
         float windowHeight = 22.0f;
@@ -1591,11 +1625,11 @@ public:
             for (int col = 0; col < numWindowCols; ++col) {
                 float wx = x + w_gap + col * (windowWidth + w_gap);
                 float wy = y + 25 + h_gap + row * (windowHeight + h_gap);
-                
+
                 // Sill
-                glColor3f(0.8f, 0.8f, 0.8f);
+                setObjectColor(0.8f, 0.8f, 0.8f);
                 drawRect(wx-2, wy-2, windowWidth+4, 4);
-                
+
                 // Determine the base color for an unlit window
                 Color unlitBaseColor;
                 // The base color is always the reflective day color, even at night.
@@ -1605,7 +1639,7 @@ public:
                 float r = unlitBaseColor.r + (litColor.r - unlitBaseColor.r) * windowStates[windowIndex].brightness;
                 float g = unlitBaseColor.g + (litColor.g - unlitBaseColor.g) * windowStates[windowIndex].brightness;
                 float b = unlitBaseColor.b + (litColor.b - unlitBaseColor.b) * windowStates[windowIndex].brightness;
-                
+
                 glColor3f(r, g, b);
                 drawRect(wx, wy, windowWidth, windowHeight);
 
@@ -1624,7 +1658,7 @@ private:
 public:
     GlassSkyscraper(float _x, float _y, float _width, float _height)
         : Building(_x, _y, _width, _height) {
-        
+
         numWindowRows = 25;
         numWindowCols = 5;
         windowStates.resize(numWindowRows * numWindowCols);
@@ -1644,7 +1678,7 @@ public:
                 window.isLitTarget = false;
             }
         }
-        
+
         if (isNight && frameCount % 10 == 0) {
             if (rand() % 3 == 0) {
                 int index = rand() % windowStates.size();
@@ -1659,39 +1693,36 @@ public:
     }
 
     void draw() override {
-        // ... (The drawing code for the building structure is the same)
-        glColor3f(0.3f, 0.35f, 0.4f);
+
+        setObjectColor(0.3f, 0.35f, 0.4f);
         drawRect(x, y, width, height);
         glBegin(GL_QUADS);
-        glColor3f(0.5f, 0.6f, 0.7f);
+        setObjectColor(0.5f, 0.6f, 0.7f);
         glVertex2f(x + 5, y);
         glVertex2f(x + width, y);
-        glColor3f(0.8f, 0.85f, 0.9f);
+        setObjectColor(0.8f, 0.85f, 0.9f);
         glVertex2f(x + width, y + height);
         glVertex2f(x + 5, y + height);
         glEnd();
 
-        // --- NEW WINDOW DRAWING LOGIC ---
         float w_gap = 4.0f;
         float h_gap = 4.0f;
         float windowWidth = (width - 5 - (numWindowCols + 1) * w_gap) / numWindowCols;
         float windowHeight = (height - (numWindowRows + 1) * h_gap) / numWindowRows;
 
-        Color dayColor = {0.8f, 0.85f, 0.9f}; // Reflective glass color
-        Color litColor = {1.0f, 1.0f, 0.9f};
+        Color dayColor = {0.4f, 0.5f, 0.6f}; // Unlit window color
+        Color litColor = {0.9f, 0.9f, 0.7f}; // Lit window color
 
         int windowIndex = 0;
         for (int row = 0; row < numWindowRows; ++row) {
             for (int col = 0; col < numWindowCols; ++col) {
                 float wx = x + 5 + w_gap + col * (windowWidth + w_gap);
                 float wy = y + h_gap + row * (windowHeight + h_gap);
-                
-                // For glass skyscrapers, the unlit color is always the reflective day color.
-                // We just add light on top of it.
+
                 float r = dayColor.r + (litColor.r - dayColor.r) * windowStates[windowIndex].brightness;
                 float g = dayColor.g + (litColor.g - dayColor.g) * windowStates[windowIndex].brightness;
                 float b = dayColor.b + (litColor.b - dayColor.b) * windowStates[windowIndex].brightness;
-                
+
                 glColor3f(r, g, b);
                 drawRect(wx, wy, windowWidth, windowHeight);
 
@@ -1701,6 +1732,295 @@ public:
     }
 };
 
+class ModernOfficeBuilding : public Building {
+private:
+    // We now track the lighting state for each floor, not each window
+    std::vector<WindowState> floorStates;
+    bool wasNightInternal = false;
+    int numFloors = 4; // Define the number of floors
+    int numWindowsPerFloor = 10; // Windows per floor
+
+public:
+    ModernOfficeBuilding(float _x, float _y, float _width, float _height)
+        : Building(_x, _y, _width, _height) {
+        floorStates.resize(numFloors);
+    }
+
+    void update(unsigned int frameCount) override {
+        bool transitionToNight = isNight && !wasNightInternal;
+        bool transitionToDay = !isNight && wasNightInternal;
+        wasNightInternal = isNight;
+
+        if (transitionToNight) {
+            // At the start of the night, decide which floors will have lights on.
+            // For an office, maybe fewer floors are lit.
+            for (auto& floor : floorStates) {
+                floor.isLitTarget = (rand() % 4 == 0); // 25% chance for a floor to be lit
+            }
+        } else if (transitionToDay) {
+            // During the day, all lights are off.
+            for (auto& floor : floorStates) {
+                floor.isLitTarget = false;
+            }
+        }
+
+        // Smoothly update the brightness for each floor
+        for (auto& floor : floorStates) {
+            float targetBrightness = floor.isLitTarget ? 1.0f : 0.0f;
+            // Instantly set brightness for now, but you could add a fade effect here
+            floor.brightness = targetBrightness;
+        }
+    }
+
+    void draw() override {
+        // Building structure - Light concrete color
+        setObjectColor(0.85f, 0.85f, 0.8f);
+        drawRect(x, y, width, height);
+
+        // Decorative vertical lines for a modern look
+        setObjectColor(0.7f, 0.7f, 0.65f);
+        for (int i = 1; i < 5; ++i) {
+            float lineX = x + i * (width / 5.0f);
+            drawLine(lineX, y, lineX, y + height);
+        }
+
+        // --- Improved Window Drawing Logic ---
+        float w_gap = 2.0f;
+        float h_gap = 12.0f;
+        float windowWidth = (width - (numWindowsPerFloor + 1) * w_gap) / numWindowsPerFloor;
+        float windowHeight = (height - (numFloors + 1) * h_gap) / numFloors;
+
+        Color dayColor = {0.4f, 0.5f, 0.6f};
+        Color litColor = {0.9f, 0.9f, 0.7f};
+
+        for (int floor = 0; floor < numFloors; ++floor) {
+            float currentBrightness = floorStates[floor].brightness;
+
+            float r = dayColor.r + (litColor.r - dayColor.r) * currentBrightness;
+            float g = dayColor.g + (litColor.g - dayColor.g) * currentBrightness;
+            float b = dayColor.b + (litColor.b - dayColor.b) * currentBrightness;
+            glColor3f(r, g, b);
+
+            for (int col = 0; col < numWindowsPerFloor; ++col) {
+                float wx = x + w_gap + col * (windowWidth + w_gap);
+                float wy = y + h_gap + floor * (windowHeight + h_gap);
+                drawRect(wx, wy, windowWidth, windowHeight);
+            }
+        }
+    }
+};
+
+
+class ClassicApartment : public Building {
+private:
+    std::vector<WindowState> windowStates;
+    bool wasNightInternal = false;
+
+    // New member for managing smoke particles
+    std::vector<SmokeParticle> smokeParticles;
+
+public:
+    ClassicApartment(float _x, float _y, float _width, float _height)
+        : Building(_x, _y, _width, _height) {
+        windowStates.resize(12); // 3 rows of 4 windows
+    }
+
+    void update(unsigned int frameCount) override {
+        // --- Window lighting logic (unchanged) ---
+        bool transitionToNight = isNight && !wasNightInternal;
+        bool transitionToDay = !isNight && wasNightInternal;
+        wasNightInternal = isNight;
+
+        if (transitionToNight) {
+            for (auto& window : windowStates) {
+                window.isLitTarget = (rand() % 2 == 0);
+            }
+        } else if (transitionToDay) {
+            for (auto& window : windowStates) {
+                window.isLitTarget = false;
+            }
+        }
+
+        for (auto& window : windowStates) {
+            float targetBrightness = window.isLitTarget ? 1.0f : 0.0f;
+            window.brightness = targetBrightness;
+        }
+
+        // --- NEW: Smoke Animation Logic ---
+        // 1. Spawn a new smoke particle periodically
+        if (frameCount % 15 == 0) { // Spawn a new puff every 15 frames
+            float chimneyTopX = x + width - 20;
+            float chimneyTopY = y + height + 20;
+            smokeParticles.push_back({
+                chimneyTopX,
+                chimneyTopY,
+                3.0f,                  // Initial size
+                1.0f,                  // Initial alpha (fully visible)
+                0.1f + (rand() % 20) / 100.0f // Slight random sideways drift
+            });
+        }
+
+        // 2. Update all existing particles
+        for (auto& p : smokeParticles) {
+            p.y += 0.5f;           // Move up
+            p.x += p.x_drift;      // Drift sideways
+            p.size += 0.1f;          // Grow bigger
+            p.alpha -= 0.008f;     // Fade out
+        }
+
+        // 3. Remove dead particles (that have faded out)
+        smokeParticles.erase(
+            std::remove_if(smokeParticles.begin(), smokeParticles.end(), [](const SmokeParticle& p) {
+                return p.alpha <= 0.0f;
+            }),
+            smokeParticles.end()
+        );
+    }
+
+    void draw() override {
+        // --- Building and Window drawing (unchanged) ---
+        // Building color
+        setObjectColor(0.9f, 0.85f, 0.7f); // Cream color
+        drawRect(x, y, width, height);
+
+        // Roof
+        setObjectColor(0.6f, 0.4f, 0.2f); // Brown roof
+        drawRect(x - 5, y + height - 10, width + 10, 15);
+
+        // Windows
+        float windowWidth = width / 6.0f;
+        float windowHeight = height / 5.0f;
+        for (int row = 0; row < 3; ++row) {
+            for (int col = 0; col < 4; ++col) {
+                float wx = x + (col + 1) * (width / 5.0f) - windowWidth / 2;
+                float wy = y + (row + 0.5f) * (height / 3.5f) - windowHeight / 2;
+                int windowIndex = row * 4 + col;
+                setObjectColor(0.8f, 0.75f, 0.6f);
+                drawRect(wx - 2, wy - 2, windowWidth + 4, 4);
+                float r = 0.2f + 0.8f * windowStates[windowIndex].brightness;
+                float g = 0.2f + 0.7f * windowStates[windowIndex].brightness;
+                float b = 0.3f + 0.5f * windowStates[windowIndex].brightness;
+                glColor3f(r, g, b);
+                drawRect(wx, wy, windowWidth, windowHeight);
+            }
+        }
+
+        
+        for (const auto& p : smokeParticles) {
+            // Set color to a semi-transparent grey that respects the particle's alpha
+            glColor4f(0.7f, 0.7f, 0.7f, p.alpha);
+            drawCircle(p.x, p.y, p.size);
+        }
+
+        setObjectColor(0.5f, 0.35f, 0.3f);
+        drawRect(x + width - 25, y + height - 5, 15, 30);
+
+    }
+};
+
+class Shop : public Building {
+private:
+    std::string shopName;
+    Color awningColor;
+    bool isOpen;
+    bool wasNightInternal = false; // Tracks day/night transition
+
+public:
+    Shop(float _x, float _y, float _width, float _height, std::string _name, Color _color)
+        : Building(_x, _y, _width, _height), shopName(_name), awningColor(_color), isOpen(true) {}
+
+    void update(unsigned int frameCount) override {
+        bool transitionToNight = isNight && !wasNightInternal;
+        bool transitionToDay = !isNight && wasNightInternal;
+        wasNightInternal = isNight;
+
+        if (transitionToNight) {
+            // At the start of the night, decide if the shop stays open.
+            // This decision is now made only ONCE per night, preventing flickering.
+            isOpen = (rand() % 4 != 0); // 75% chance to stay open
+        } else if (transitionToDay) {
+            // Shops are always open during the day.
+            isOpen = true;
+        }
+    }
+
+    void draw() override {
+        // Building facade
+        setObjectColor(0.85f, 0.8f, 0.7f); // Tan color for the building body
+        drawRect(x, y, width, height);
+
+        // Awning with stripes
+        float awningY = y + height * 0.65f;
+        setObjectColor(awningColor.r, awningColor.g, awningColor.b);
+        drawRect(x, awningY, width, 12);
+        setObjectColor(awningColor.r * 0.8f, awningColor.g * 0.8f, awningColor.b * 0.8f);
+        for (int i = 0; i < width; i += 10) {
+            drawRect(x + i, awningY, 5, 12);
+        }
+
+        // --- Storefront window ---
+        // Define window boundaries for easier use later
+        float windowX = x + 10;
+        float windowY = y + 10;
+        float windowW = width - 20;
+        float windowH = height * 0.5f - 10;
+
+        if (isOpen && isNight) {
+            // Bright, pale yellow for a warm lit effect
+            glColor3f(1.0f, 1.0f, 0.85f);
+        } else {
+            // Reflective/darker window during the day or when closed at night
+            setObjectColor(0.3f, 0.3f, 0.4f);
+        }
+        drawRect(windowX, windowY, windowW, windowH);
+
+        // --- NEW: Draw Silhouettes inside the window ---
+        // Use a single, dark, semi-transparent color for all silhouette parts
+        setObjectColor(0.4f, 0.4f, 0.4f);
+
+        if (shopName == "CAFE") {
+            // Draw a counter
+            drawRect(windowX, windowY, windowW, windowH * 0.25f);
+            // Draw a coffee machine on the counter
+            drawRect(windowX + windowW * 0.6f, windowY + windowH * 0.25f, windowW * 0.3f, windowH * 0.4f);
+            // Draw some cups on a shelf
+            drawLine(windowX + windowW * 0.1f, windowY + windowH * 0.6f, windowX + windowW * 0.4f, windowY + windowH * 0.6f, 2.0f);
+            drawCircle(windowX + windowW * 0.15f, windowY + windowH * 0.6f + 5, 3);
+            drawCircle(windowX + windowW * 0.25f, windowY + windowH * 0.6f + 5, 3);
+            drawCircle(windowX + windowW * 0.35f, windowY + windowH * 0.6f + 5, 3);
+
+        } else if (shopName == "BOOKS") {
+            for (int i = 0; i < 3; ++i) {
+                float shelfX = windowX + windowW * 0.1f + i * (windowW * 0.3f);
+                // Shelf vertical structure
+                drawRect(shelfX, windowY, windowW * 0.25f, windowH * 0.9f);
+                // Draw books on shelves
+                for (int j = 0; j < 3; ++j) {
+                    float bookY = windowY + windowH * 0.1f + j * (windowH * 0.3f);
+                    drawRect(shelfX + 2, bookY, windowW * 0.2f, windowH * 0.25f);
+                }
+            }
+        }
+        
+        // --- End of Silhouette code ---
+
+        // Window frame (drawn on top of everything)
+        setObjectColor(0.2f, 0.2f, 0.2f);
+        drawBound(windowX, windowY, windowW, windowH);
+
+        // Sign
+        setObjectColor(0.2f, 0.2f, 0.2f);
+        drawRect(x, y + height - 30, width, 30);
+        setObjectColor(1.0f, 1.0f, 1.0f);
+        drawText(x + 15, y + height - 22, shopName.c_str(), 0.18f);
+
+        // Reset alpha blending for other objects
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+};
+
+
 void updateBuildings() {
     for (auto& building : backgroundBuildings) {
         building->update(frameCount);
@@ -1708,7 +2028,7 @@ void updateBuildings() {
 }
 
 void drawGrass(float x, float y, float scale = 1.0f) {
-    glColor3f(0.2f, 0.7f, 0.2f);
+    setObjectColor(0.2f, 0.7f, 0.2f);
     glBegin(GL_LINES);
     for (int i = -2; i <= 2; ++i) {
         glVertex2f(x, y);
@@ -1719,13 +2039,13 @@ void drawGrass(float x, float y, float scale = 1.0f) {
 
 void drawFlower(float x, float y, float scale = 1.0f) {
     // Stem
-    glColor3f(0.2f, 0.7f, 0.2f);
+    setObjectColor(0.2f, 0.7f, 0.2f);
     glBegin(GL_LINES);
     glVertex2f(x, y);
     glVertex2f(x, y + 10 * scale);
     glEnd();
     // Petals
-    glColor3f(1.0f, 0.7f, 0.2f); // yellow/orange
+    setObjectColor(1.0f, 0.7f, 0.2f); // yellow/orange
     for (int i = 0; i < 5; ++i) {
         float angle = i * 2 * 3.14159f / 5;
         float px = x + cosf(angle) * 4 * scale;
@@ -1733,7 +2053,7 @@ void drawFlower(float x, float y, float scale = 1.0f) {
         drawCircle(px, py, 2.0f * scale, 8);
     }
     // Center
-    glColor3f(1.0f, 0.2f, 0.5f); // pink center
+    setObjectColor(1.0f, 0.2f, 0.5f); // pink center
     drawCircle(x, y + 10 * scale, 2.2f * scale, 10);
 }
 
@@ -1748,7 +2068,7 @@ class BasicTree : public Tree {
 public:
     BasicTree(float x, float y) : Tree(x, y, 40, 80) {}
     void draw() override {
-        glColor3f(0.5f, 0.3f, 0.05f);
+        setObjectColor(0.5f, 0.3f, 0.05f);
         glBegin(GL_QUADS);
         glVertex2f(x - 8, y);  // Reduced from 12
         glVertex2f(x + 8, y);
@@ -1756,11 +2076,11 @@ public:
         glVertex2f(x - 6, y + 50);
         glEnd();
 
-        glColor3f(0.0f, 0.45f, 0.05f);
+        setObjectColor(0.0f, 0.45f, 0.05f);
         drawCircle(x, y + 75, 25);  // Reduced from 35
         drawCircle(x - 15, y + 65, 20);  // Reduced from 30
         drawCircle(x + 15, y + 65, 20);  // Reduced from 30
-        glColor3f(0.1f, 0.55f, 0.1f);
+        setObjectColor(0.1f, 0.55f, 0.1f);
         drawCircle(x, y + 80, 18);  // Reduced from 25
     }
 };
@@ -1770,7 +2090,7 @@ public:
     PineTree(float x, float y) : Tree(x, y, 50, 130) {}
     void draw() override {
         // Trunk
-        glColor3f(0.5f, 0.3f, 0.05f);
+        setObjectColor(0.5f, 0.3f, 0.05f);
         glBegin(GL_QUADS);
         glVertex2f(x - 6, y);  // Reduced from 8
         glVertex2f(x + 6, y);
@@ -1779,7 +2099,7 @@ public:
         glEnd();
 
         // Pine needles - multiple layers with varying sizes
-        glColor3f(0.0f, 0.4f, 0.1f);
+        setObjectColor(0.0f, 0.4f, 0.1f);
         // Bottom layer - widest
         glBegin(GL_TRIANGLES);
         glVertex2f(x - 35, y + 60);  // Reduced from 45
@@ -1811,7 +2131,7 @@ public:
         glVertex2f(x, y + 145);  // Reduced from 190
         glEnd();
         // Add some darker green details
-        glColor3f(0.0f, 0.35f, 0.05f);
+        setObjectColor(0.0f, 0.35f, 0.05f);
         glBegin(GL_TRIANGLES);
         glVertex2f(x - 25, y + 70);  // Reduced from 35
         glVertex2f(x + 25, y + 70);
@@ -1825,7 +2145,7 @@ public:
     MapleTree(float x, float y) : Tree(x, y, 70, 120) {}
     void draw() override {
         // Trunk
-        glColor3f(0.5f, 0.3f, 0.05f);
+        setObjectColor(0.5f, 0.3f, 0.05f);
         glBegin(GL_QUADS);
         glVertex2f(x - 10, y);
         glVertex2f(x + 10, y);
@@ -1840,7 +2160,7 @@ public:
         glVertex2f(x - 6, y + 80);
         glEnd();
         // Maple leaves - multiple layers
-        glColor3f(0.0f, 0.5f, 0.1f);
+        setObjectColor(0.0f, 0.5f, 0.1f);
         for (int i = 0; i < 3; i++) {
             float yy = y + 80 + i * 20;
             float radius = 35 - i * 5;
@@ -1859,24 +2179,24 @@ public:
         // Draw the pole with a gradient effect
         glBegin(GL_QUADS);
         // Darker shade at the bottom
-        glColor3f(0.3f, 0.3f, 0.3f);
+        setObjectColor(0.3f, 0.3f, 0.3f);
         glVertex2f(-4, 0);
         glVertex2f(4, 0);
         // Lighter shade at the top
-        glColor3f(0.5f, 0.5f, 0.5f);
+        setObjectColor(0.5f, 0.5f, 0.5f);
         glVertex2f(4, 120);
         glVertex2f(-4, 120);
         glEnd();
 
         // Draw decorative rings around the pole
-        glColor3f(0.4f, 0.4f, 0.4f);
+        setObjectColor(0.4f, 0.4f, 0.4f);
         for (int i = 0; i < 3; i++) {
             float y_pos = 30 + i * 30;
             drawRect(-5, y_pos, 10, 2);
         }
 
         // Draw the arm with a modern curved design
-        glColor3f(0.4f, 0.4f, 0.4f);
+        setObjectColor(0.4f, 0.4f, 0.4f);
         // Main arm
         glBegin(GL_QUADS);
         glVertex2f(0, 115);
@@ -1894,7 +2214,7 @@ public:
         glEnd();
 
         // Draw the lamp housing
-        glColor3f(0.2f, 0.2f, 0.2f);
+        setObjectColor(0.2f, 0.2f, 0.2f);
         // Main housing
         glBegin(GL_QUADS);
         glVertex2f(35, 105);
@@ -1942,12 +2262,12 @@ public:
             drawCircle(40, 0, 25); // Adjusted y and radius for larger reflection
         } else {
             // Draw the lamp when off
-            glColor3f(0.6f, 0.6f, 0.5f);
+            setObjectColor(0.6f, 0.6f, 0.5f);
             drawCircle(40, 100, 5);
         }
 
         // Add some decorative details
-        glColor3f(0.3f, 0.3f, 0.3f);
+        setObjectColor(0.3f, 0.3f, 0.3f);
         // Small decorative elements on the arm
         for (int i = 0; i < 3; i++) {
             float x_pos = 10 + i * 10;
@@ -1955,6 +2275,47 @@ public:
         }
 
         glPopMatrix();
+    }
+};
+
+// --- Post Box Class ---
+class PostBox : public Drawable {
+public:
+    PostBox(float x, float y) : Drawable(x, y, 18, 40) {}
+    void draw() override {
+        // Main body
+        setObjectColor(0.85f, 0.1f, 0.1f); // Red
+        drawRect(x, y, width, height - 8);
+        // Top dome
+        setObjectColor(0.7f, 0.07f, 0.07f);
+        drawCircle(x + width / 2, y + height - 8, width / 2, 16);
+        // Mail slot
+        setObjectColor(0.1f, 0.1f, 0.1f);
+        drawRect(x + 4, y + height - 18, width - 8, 4);
+        // Base
+        setObjectColor(0.3f, 0.1f, 0.1f);
+        drawRect(x + 2, y - 4, width - 4, 6);
+    }
+};
+
+// --- Bench Class ---
+class Bench : public Drawable {
+public:
+    Bench(float x, float y) : Drawable(x, y, 50, 12) {}
+    void draw() override {
+        // Seat plank 1
+        setObjectColor(0.6f, 0.4f, 0.2f); // Wood
+        drawRect(x, y, width, 4);
+        // Seat plank 2 (extra wood plank)
+        setObjectColor(0.6f, 0.4, 0.2f); // Wood
+        drawRect(x, y + 4, width, 4);
+        // Backrest
+        setObjectColor(0.5f, 0.3f, 0.15f);
+        drawRect(x, y + 8, width, 3);
+        // Legs
+        setObjectColor(0.2f, 0.2f, 0.2f); // Metal
+        drawRect(x + 2, y - 6, 4, 10);
+        drawRect(x + width - 6, y - 6, 4, 10);
     }
 };
 
@@ -2079,7 +2440,7 @@ void drawBackgroundScenes() {
 
 
 void drawGround() {
-    glColor3f(0.35f, 0.7f, 0.25f); // green ground
+    setObjectColor(0.35f, 0.7f, 0.25f); // green ground
     glBegin(GL_QUADS);
     glVertex2f(0, 0);
     glVertex2f(WINDOW_WIDTH, 0);
@@ -2107,14 +2468,14 @@ void drawGround() {
 
 void drawRoadAndSidewalks()
 {
-    glColor3f(0.4f, 0.4f, 0.4f);
+    setObjectColor(0.4f, 0.4f, 0.4f);
     glBegin(GL_QUADS);
     glVertex2f(0, ROAD_Y_BOTTOM);
     glVertex2f(WINDOW_WIDTH, ROAD_Y_BOTTOM);
     glVertex2f(WINDOW_WIDTH, ROAD_Y_TOP);
     glVertex2f(0, ROAD_Y_TOP);
     glEnd();
-    glColor3f(0.75f, 0.75f, 0.75f);
+    setObjectColor(0.75f, 0.75f, 0.75f);
     glBegin(GL_QUADS);
     glVertex2f(0, SIDEWALK_TOP_Y_START);
     glVertex2f(WINDOW_WIDTH, SIDEWALK_TOP_Y_START);
@@ -2127,7 +2488,7 @@ void drawRoadAndSidewalks()
     glVertex2f(WINDOW_WIDTH, SIDEWALK_BOTTOM_Y_END);
     glVertex2f(0, SIDEWALK_BOTTOM_Y_END);
     glEnd();
-    glColor3f(0.9f, 0.9f, 0.9f);
+    setObjectColor(0.9f, 0.9f, 0.9f);
     float road_center_y = (ROAD_Y_BOTTOM + ROAD_Y_TOP) / 2.0f;
     for (float i = 0; i < WINDOW_WIDTH; i += 60)
     {
@@ -2152,7 +2513,7 @@ int countCarsNearCrossing() {
 
 void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_area_x_start, float crossing_area_width)
 {
-    glColor3f(0.95f, 0.95f, 0.95f);
+    setObjectColor(0.95f, 0.95f, 0.95f);
     float offset = -5.0f;
     //draw 10 stripes on x axis
     const int stripCount = 10;
@@ -2169,7 +2530,7 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
     }
 
     // Draw debug bounding box for zebra crossing area
-    if (DEBUG_ON) {  // Removed !scenePaused check
+    if (DEBUG_ON) {  // Removed !IS_PAUSED check
         // Main crossing area
         glColor3f(1.0f, 0.0f, 1.0f);  // Magenta color for zebra crossing debug box
         drawBound(crossing_area_x_start, road_y_bottom, crossing_area_width, road_y_top - road_y_bottom);
@@ -2282,6 +2643,14 @@ void drawSceneObjects() {
     for (const auto& human : activeHumans) {
         drawableObjects.push_back(std::static_pointer_cast<Drawable>(human));
     }
+
+    // --- Add Post Boxes ---
+    drawableObjects.push_back(std::make_shared<PostBox>(130, SIDEWALK_TOP_Y_END - 8));
+    drawableObjects.push_back(std::make_shared<PostBox>(800, SIDEWALK_BOTTOM_Y_START + 8));
+
+    // --- Add Benches ---
+    drawableObjects.push_back(std::make_shared<Bench>(250, SIDEWALK_TOP_Y_END - 8));
+    drawableObjects.push_back(std::make_shared<Bench>(700, SIDEWALK_BOTTOM_Y_START + 8));
 
     //apply y-sorting
     std::sort(drawableObjects.begin(), drawableObjects.end(), [](const auto& a, const auto& b) {
@@ -2540,12 +2909,12 @@ void display()
 
 void timer(int)
 {
-    if (!scenePaused)
+    if (!IS_PAUSED)
     {
         updateScene();
         frameCount++;
         // Resume music if not paused and desired
-        if (backgroundMusicDesired && !audioManager.isPlaying("traffic")) {
+        if (MUSIC_ON && !audioManager.isPlaying("traffic")) {
             audioManager.playSound("traffic", true);
             audioManager.playSound("people", true);
         }
@@ -2576,7 +2945,7 @@ void keyboard(unsigned char key, int x, int y) {
             break;
         case 'p':
         case 'P':
-            scenePaused = !scenePaused;
+            IS_PAUSED = !IS_PAUSED;
             break;
         case 'd':
         case 'D':
@@ -2598,14 +2967,14 @@ void keyboard(unsigned char key, int x, int y) {
         case 'm':
         case 'M':
             // Toggle background traffic sound
-            if (backgroundMusicDesired) { // If music is currently desired
+            if (MUSIC_ON) { // If music is currently desired
                 audioManager.stopSound("traffic");
                 audioManager.stopSound("people");
-                backgroundMusicDesired = false;
+                MUSIC_ON = false;
             } else { // If music is not currently desired
                 audioManager.playSound("traffic", true);
                 audioManager.playSound("people", true);
-                backgroundMusicDesired = true;
+                MUSIC_ON = true;
             }
             break;
         case 27: // ESC key
@@ -2643,11 +3012,20 @@ void init()
     srand(time(0));
 
     backgroundBuildings.clear();
+    // A mix of new and old building types for variety
     backgroundBuildings.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
     backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(220.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
-    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(350.0f, SIDEWALK_TOP_Y_END, 100.0f, 120.0f));
-    backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(500.0f, SIDEWALK_TOP_Y_END, 90.0f, 240.0f));
-    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(700.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
+    
+    // Add new building types
+    backgroundBuildings.push_back(std::make_shared<ModernOfficeBuilding>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
+    backgroundBuildings.push_back(std::make_shared<ClassicApartment>(440.0f, SIDEWALK_TOP_Y_END, 110.0f, 160.0f));
+
+    // Add some shops
+    backgroundBuildings.push_back(std::make_shared<Shop>(570.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
+    backgroundBuildings.push_back(std::make_shared<Shop>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
+
+    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(800.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
+
 
     // Initialize vehicles
     for (int i = 0; i < 4; ++i) {
