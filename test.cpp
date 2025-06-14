@@ -756,6 +756,18 @@ public:
     int direction;
     float SYNC_CONST;
 
+    // Default constructor for pre-allocation
+    AdvancedHuman() : Drawable(-1000.0f, -1000.0f), // Start off-screen
+        state(HumanState::DESPAWNED),
+        targetX(0.0f), currentSidewalkY(0.0f),
+        onBottomSidewalkInitially(false), willCrossRoad(false),
+        speedFactor(1.0f), speed(0.0f), // No movement initially
+        shirtColor({0,0,0}), pantsColor({0,0,0}), hairColor({0,0,0}), skinColor({0,0,0}),
+        hairStyle(HairStyle::Bald), // Default to bald
+        scale(1.0f), walkCycle(0.0f), isWalking(false), direction(0) {
+        SYNC_CONST = 0.15f;
+    }
+
     AdvancedHuman(float startX, float startY, float visualScale, const Color& shirt, const Color& pants, const Color& skin, const Color& hair, HairStyle style)
         : Drawable(startX, startY, 0.2f, 0.4f),
           state(HumanState::WALKING_ON_SIDEWALK),
@@ -777,6 +789,43 @@ public:
         SYNC_CONST = 0.15f;
     }
 
+    // New reset method
+    void reset() {
+        state = HumanState::DESPAWNED;
+        x = -1000.0f; // Move off-screen
+        y = -1000.0f; // Move off-screen
+        stopWalking();
+    }
+
+    // New method to initialize human properties for a new "spawn"
+    void initialize(float startX, float startY, float visualScale, const Color& shirt, const Color& pants, const Color& skin, const Color& hair, HairStyle style, bool bottomSidewalk, bool crossRoad) {
+        x = startX;
+        y = startY;
+        scale = visualScale;
+        shirtColor = shirt;
+        pantsColor = pants;
+        skinColor = skin;
+        hairColor = hair;
+        hairStyle = style;
+        onBottomSidewalkInitially = bottomSidewalk;
+        willCrossRoad = crossRoad;
+
+        speedFactor = 1.0f + (rand() % 41) / 100.0f;
+        speed = 0.7f * speedFactor;
+        walkCycle = 0.0f;
+        isWalking = false;
+        direction = 0; // Reset direction
+
+        state = HumanState::WALKING_ON_SIDEWALK;
+        currentSidewalkY = startY;
+
+        if (!willCrossRoad) {
+            targetX = (startX < WINDOW_WIDTH / 2) ? WINDOW_WIDTH + 50.0f : -50.0f;
+        } else {
+            targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
+        }
+    }
+
     // --- Control Methods ---
     void startWalking(int dir) {
         isWalking = true;
@@ -790,6 +839,8 @@ public:
 
     // --- Core Public Methods ---
     void update() {
+        if (state == HumanState::DESPAWNED) return; // Do not update despawned humans
+
         bool isCurrentlyMoving = false;
         float effectiveSpeed = speed;
         float walkCycleSpeed = 0.2f;  // Base walk cycle speed
@@ -855,10 +906,11 @@ public:
                 walkCycleSpeed = effectiveSpeed * SYNC_CONST;  // Scale walk cycle with movement speed
                 if ((targetX < 0 && x < 0) || (targetX > WINDOW_WIDTH && x > WINDOW_WIDTH)) {
                     state = HumanState::DESPAWNED;
+                    reset(); // Use the reset method to prepare for reuse
                 } else if (x < targetX) {
                     x += effectiveSpeed;
                     startWalking(0); // Right
-                } else {
+                } else { // x >= targetX
                     x -= effectiveSpeed;
                     startWalking(1); // Left
                 }
@@ -866,6 +918,7 @@ public:
             
             case HumanState::DESPAWNED:
                 stopWalking();
+                // No update needed for despawned state
                 break;
         }
 
@@ -880,6 +933,8 @@ public:
     }
 
     void draw() {
+        if (state == HumanState::DESPAWNED) return; // Do not draw despawned humans
+
         glPushMatrix();
 
         // The model's origin is its torso center. The simulation's `y` is the feet position.
@@ -2945,6 +3000,9 @@ void drawAll() {
     drawableObjects.push_back(trafficSignal);
     // Add humans to drawable objects
     for (const auto& human : activeHumans) {
+        // Only add non-despawned humans to the drawable list.
+        // This is actually wrong; all humans are always in activeHumans, and draw()
+        // handles not drawing despawned ones. So this loop will just pass all.
         drawableObjects.push_back(std::static_pointer_cast<Drawable>(human));
     }
     // --- Add Post Boxes ---
@@ -2960,17 +3018,17 @@ void drawAll() {
         return a->y > b->y;
     });
 
-    // // Add bushes and rocks
-    // staticDecorations.push_back(std::make_shared<Bush>(100, 60, 1.2f));
-    // staticDecorations.push_back(std::make_shared<Bush>(130, 50, 0.9f));
-    // staticDecorations.push_back(std::make_shared<Rock>(180, 45, 1.0f));
+    // Add bushes and rocks
+    backgroundObjects.push_back(std::make_shared<Bush>(100, 60, 1.2f));
+    backgroundObjects.push_back(std::make_shared<Bush>(130, 50, 0.9f));
+    backgroundObjects.push_back(std::make_shared<Rock>(180, 45, 1.0f));
 
-    // staticDecorations.push_back(std::make_shared<Bush>(500, 80, 1.0f));
-    // staticDecorations.push_back(std::make_shared<Rock>(550, 70, 1.3f));
-    // staticDecorations.push_back(std::make_shared<Rock>(580, 75, 0.8f));
+    backgroundObjects.push_back(std::make_shared<Bush>(500, 80, 1.0f));
+    backgroundObjects.push_back(std::make_shared<Rock>(550, 70, 1.3f));
+    backgroundObjects.push_back(std::make_shared<Rock>(580, 75, 0.8f));
 
-    // staticDecorations.push_back(std::make_shared<Bush>(850, 55, 1.5f));
-    // staticDecorations.push_back(std::make_shared<Rock>(890, 40, 1.1f));
+    backgroundObjects.push_back(std::make_shared<Bush>(850, 55, 1.5f));
+    backgroundObjects.push_back(std::make_shared<Rock>(890, 40, 1.1f));
 
     // Draw background objects
     for (const auto& obj : backgroundObjects) {
@@ -3058,10 +3116,21 @@ void updateSkyColor() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-void spawnNewHuman() {
+void humanRunner() {
     // Original checks for max humans and spawn rate
-    if (activeHumans.size() >= MAX_ACTIVE_HUMANS) return;
     if (lastHumanSpawnTime != 0 && (timeNow() - lastHumanSpawnTime < MIN_TIME_BETWEEN_SPAWNS_HUMAN * 100)) return;
+
+    // Try to find a despawned human to reuse
+    std::shared_ptr<AdvancedHuman> humanToReuse = nullptr;
+    for (const auto& human : activeHumans) {
+        if (human->state == HumanState::DESPAWNED) {
+            humanToReuse = human;
+            break;
+        }
+    }
+
+    // If no despawned human found and we are at max capacity, do not spawn
+    if (!humanToReuse && activeHumans.size() >= MAX_ACTIVE_HUMANS) return;
 
     // --- Define some colors for variety ---
     Color redShirt = {0.8f, 0.2f, 0.2f}, tealShirt = {0.1f, 0.5f, 0.5f}, greenShirt = {0.2f, 0.6f, 0.2f};
@@ -3086,38 +3155,22 @@ void spawnNewHuman() {
     bool comesFromLeft = rand() % 2 == 0;
     float startX = comesFromLeft ? -50.0f : WINDOW_WIDTH + 50.0f;
     float startY = startsOnBottomSidewalk ? (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f : (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f;
+    bool willCross = (rand() % 3) == 0;
     
-    // Create and configure the new human
-    std::shared_ptr<AdvancedHuman> newHuman = std::make_shared<AdvancedHuman>(
-        startX, startY, 100.0f,
-        chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle
-    );
-    
-    newHuman->onBottomSidewalkInitially = startsOnBottomSidewalk;
-    newHuman->willCrossRoad = (rand() % 3) == 0;
-    newHuman->currentSidewalkY = startY;
-
-    if (!newHuman->willCrossRoad) {
-        newHuman->targetX = (startX < WINDOW_WIDTH / 2) ? WINDOW_WIDTH + 50.0f : -50.0f;
+    if (humanToReuse) {
+        // Reuse existing human object
+        humanToReuse->initialize(startX, startY, 100.0f, chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle, startsOnBottomSidewalk, willCross);
     } else {
-        newHuman->targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
+        // Create a new human only if capacity allows
+        std::shared_ptr<AdvancedHuman> newHuman = std::make_shared<AdvancedHuman>();
+        newHuman->initialize(startX, startY, 100.0f, chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle, startsOnBottomSidewalk, willCross);
+        activeHumans.push_back(newHuman);
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(newHuman)); // Add to drawableObjects only once
     }
-    
-    activeHumans.push_back(newHuman);
+
     lastHumanSpawnTime = timeNow();
 }
 
-void updateHumanStates() {
-    for (size_t i = 0; i < activeHumans.size(); ++i) {
-        auto& human = activeHumans[i];
-        if (human->state == HumanState::DESPAWNED) {
-            activeHumans.erase(activeHumans.begin() + i);
-            i--; // Decrement i to account for the erased element
-        }
-    }
-    // Periodically spawn new humans
-    spawnNewHuman();
-}
 
 void updateTime() {
     currentTimeOfDay += USER_DAY_NIGHT_CYCLE_SPEED;
@@ -3175,7 +3228,7 @@ void updateScene() {
 
     // Update vehicles separately
     updateVehiclesStates();
-    updateHumanStates();
+    humanRunner();
     // Update other objects
     for (const auto& obj : backgroundObjects) {
         obj->update();
@@ -3305,6 +3358,16 @@ void initStars() {
     }
 }
 
+void initHumans() {
+    activeHumans.reserve(MAX_ACTIVE_HUMANS); // Pre-allocate memory
+    for (int i = 0; i < MAX_ACTIVE_HUMANS; ++i) {
+        std::shared_ptr<AdvancedHuman> newHuman = std::make_shared<AdvancedHuman>();
+        newHuman->reset(); // Ensure it starts in a despawned state
+        activeHumans.push_back(newHuman);
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(newHuman)); // Add to drawableObjects once
+    }
+}
+
 void initAudio() {
     if (!audioManager.initialize()) {
         std::cerr << "Failed to initialize audio system" << std::endl;
@@ -3358,9 +3421,7 @@ void init()
         spawnNewVehicle();
     }
 
-    for (int i = 0; i < 7; ++i) { // Create 5 initial humans
-        spawnNewHuman();
-    }
+    initHumans();
 
     initClouds();
 
