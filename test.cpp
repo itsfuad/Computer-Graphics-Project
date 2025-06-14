@@ -309,12 +309,10 @@ int lastHumanSpawnTime = 0;
 
 // Enums for Traffic and Pedestrian Lights
 enum class TrafficLightState { RED, GREEN };
-enum class VehicleType { CAR, TRUCK, BUS };
+enum class VehicleType { CAR, TRUCK, BUS, VAN, SUV };
 
 // Add these constants near the top with other constants
 const float CAR_PRIORITY_THRESHOLD = 450.0f;  // Distance to check for cars
-const int MIN_CARS_FOR_PRIORITY = 2;         // Minimum cars to give them priority
-const int MIN_HUMANS_FOR_PRIORITY = 1;       // Minimum humans to give them priority
 
 // Add this near the top of the file with other constants
 const float VEHICLE_WHEEL_OFFSET = 5.0f;  // How much to lift vehicles to prevent wheel overlap
@@ -671,6 +669,99 @@ void drawBus(float x, float y, float width, float height, float r, float g, floa
     drawRect(x + width - 5, y + height * 0.25f, 4, 4);
 
     glPopMatrix();  // Restore original matrix
+}
+
+void drawVan(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed, bool isHonking) {
+    glPushMatrix();
+    glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);
+
+    // Main body (large and boxy)
+    setObjectColor(r, g, b);
+    drawRect(x, y, width * 0.95f, height);
+    // Front cab area
+    drawRect(x + width * 0.7f, y, width * 0.3f, height * 0.8f);
+
+    // Windows
+    setObjectColor(0.2f, 0.2f, 0.3f);
+    // Windshield
+    drawRect(x + width * 0.75f, y + height * 0.3f, width * 0.2f, height * 0.4f);
+    // Side panel (can be a window or solid panel)
+    drawRect(x + width * 0.1f, y + height * 0.4f, width * 0.5f, height * 0.4f);
+    // Side window outlines
+    setObjectColor(0.1f, 0.1f, 0.1f);
+    drawBound(x + width * 0.1f, y + height * 0.4f, width * 0.5f, height * 0.4f);
+
+
+    // Wheels
+    setObjectColor(0.1f, 0.1f, 0.1f);
+    drawCircle(x + width * 0.2f, y, height * 0.25f);
+    drawCircle(x + width * 0.75f, y, height * 0.25f);
+    setObjectColor(0.7f, 0.7f, 0.7f);
+    drawCircle(x + width * 0.2f, y, height * 0.15f);
+    drawCircle(x + width * 0.75f, y, height * 0.15f);
+
+
+    // Lights
+    if (current_speed < 0.1f) glColor3f(1.0f, 0.0f, 0.0f); else glColor3f(0.6f, 0.0f, 0.0f);
+    drawRect(x, y + height * 0.2f, 4, 8); // Brake lights
+    if (isNight) {
+        glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
+        drawCircle(x + width, y + height * 0.25f, 25.0f);
+        glColor3f(1.0f, 1.0f, 0.8f);
+    } else {
+        setObjectColor(0.9f, 0.9f, 0.9f);
+    }
+    drawRect(x + width - 1, y + height * 0.25f, 4, 4); // Headlights
+
+    glPopMatrix();
+}
+
+void drawSUV(float x, float y, float width, float height, float r, float g, float b, bool isNight, float current_speed, bool isHonking) {
+    glPushMatrix();
+    glTranslatef(0, VEHICLE_WHEEL_OFFSET + 3.0f, 0); // Higher ground clearance
+
+    // Body
+    setObjectColor(r, g, b);
+    drawRect(x, y, width, height * 0.7f);
+
+    // Roof and Windows (more squared than a car)
+    setObjectColor(0.6f, 0.8f, 0.9f);
+    drawRect(x + width * 0.1f, y + height * 0.4f, width * 0.8f, height * 0.5f);
+
+    // Window outlines
+    setObjectColor(0.1f, 0.1f, 0.1f);
+    drawBound(x + width * 0.1f, y + height * 0.4f, width * 0.8f, height * 0.5f);
+    drawLine(x + width * 0.45f, y + height * 0.4f, x + width * 0.45f, y + height * 0.9f);
+    drawLine(x + width * 0.7f, y + height * 0.4f, x + width * 0.7f, y + height * 0.9f);
+
+    // Wheels (larger)
+    float wheelRadius = height * 0.3f;
+    setObjectColor(0.1f, 0.1f, 0.1f);
+    drawCircle(x + width * 0.25f, y, wheelRadius);
+    drawCircle(x + width * 0.75f, y, wheelRadius);
+    setObjectColor(0.7f, 0.7f, 0.7f);
+    drawCircle(x + width * 0.25f, y, wheelRadius * 0.6f);
+    drawCircle(x + width * 0.75f, y, wheelRadius * 0.6f);
+
+    // Spare tire on back
+    setObjectColor(0.15f, 0.15f, 0.15f);
+    drawCircle(x, y + height * 0.4f, wheelRadius * 0.8f);
+    setObjectColor(0.1f, 0.1f, 0.1f);
+    drawCircle(x, y + height * 0.4f, wheelRadius * 0.7f);
+
+    // Lights
+    if (current_speed < 0.1f) glColor3f(1.0f, 0.0f, 0.0f); else glColor3f(0.6f, 0.0f, 0.0f);
+    drawRect(x + 2, y + height * 0.5f, 4, 6); // Brake lights
+    if (isNight) {
+        glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
+        drawCircle(x + width, y + height * 0.5f, 25.0f);
+        glColor3f(1.0f, 1.0f, 0.8f);
+    } else {
+        setObjectColor(0.9f, 0.9f, 0.9f);
+    }
+    drawRect(x + width - 4, y + height * 0.5f, 4, 6); // Headlights
+
+    glPopMatrix();
 }
 
 struct Cloud {
@@ -1265,6 +1356,8 @@ public:
                     case VehicleType::CAR: soundToPlay = "car"; break;
                     case VehicleType::TRUCK: soundToPlay = "truck"; break;
                     case VehicleType::BUS: soundToPlay = "bus"; break;
+                    case VehicleType::VAN: soundToPlay = "truck"; break; // Vans can use the truck honk
+                    case VehicleType::SUV: soundToPlay = "car"; break;   // SUVs can use the car honk
                     default: soundToPlay = "car";
                 }
                 audioManager.playSound(soundToPlay, false);
@@ -1408,6 +1501,44 @@ public:
         if (DEBUG_ON) {  // Removed !IS_PAUSED check
             Rect b = getBounds();
             glColor3f(0.0f, 1.0f, 0.0f);
+            drawBound(b.x, b.y, b.w, b.h);
+        }
+    }
+};
+
+class Van : public Vehicle {
+public:
+    Van(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::VAN) {
+        // Vans are a bit slower than cars
+        speedFactor *= 0.95f;
+        target_speed = USER_CAR_SPEED_BASE * speedFactor;
+    }
+
+    void draw() override {
+        drawVan(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
+        if (DEBUG_ON) {
+            Rect b = getBounds();
+            setObjectColor(0.0f, 1.0f, 0.0f, true); // Use setObjectColor for debug bounds
+            drawBound(b.x, b.y, b.w, b.h);
+        }
+    }
+};
+
+class SUV : public Vehicle {
+public:
+    SUV(float _x, float _y, float _w, float _h, float _r, float _g, float _b)
+        : Vehicle(_x, _y, _w, _h, _r, _g, _b, VehicleType::SUV) {
+        // SUVs have similar speed to cars but maybe slightly slower acceleration
+        acceleration_rate *= 0.9f;
+        deceleration_rate *= 0.9f;
+    }
+
+    void draw() override {
+        drawSUV(x, y, width, height, r, g, b, isNight, current_speed, isHonking);
+        if (DEBUG_ON) {
+            Rect b = getBounds();
+            setObjectColor(0.0f, 1.0f, 0.0f, true); // Use setObjectColor for debug bounds
             drawBound(b.x, b.y, b.w, b.h);
         }
     }
@@ -2323,20 +2454,23 @@ void spawnNewVehicle() {
     float spawnW, spawnH;
     VehicleType type;
 
-    // Randomly choose a vehicle type
-    int typeRoll = rand() % 20; // 0-5: Car,  6-7: Truck, 8-9: Bus
-    if (typeRoll < 10) {
+    // Randomly choose a vehicle type with new probabilities
+    int typeRoll = rand() % 20;
+    if (typeRoll < 8) {          // 40% Car
         type = VehicleType::CAR;
-        spawnW = 80.0f;  // Increased from 60
-        spawnH = 35.0f;  // Increased from 28
-    } else if (typeRoll < 13) {
+        spawnW = 80.0f; spawnH = 35.0f;
+    } else if (typeRoll < 11) {  // 15% SUV
+        type = VehicleType::SUV;
+        spawnW = 90.0f; spawnH = 45.0f;
+    } else if (typeRoll < 14) {  // 15% Van
+        type = VehicleType::VAN;
+        spawnW = 100.0f; spawnH = 50.0f;
+    } else if (typeRoll < 17) {  // 15% Truck
         type = VehicleType::TRUCK;
-        spawnW = 150.0f; // Increased for larger trucks
-        spawnH = 60.0f;  // Increased for larger trucks
-    } else {
+        spawnW = 150.0f; spawnH = 60.0f;
+    } else {                     // 15% Bus
         type = VehicleType::BUS;
-        spawnW = 160.0f; // Increased from 120
-        spawnH = 50.0f;  // Increased from 40
+        spawnW = 160.0f; spawnH = 50.0f;
     }
 
     float spawnX = -spawnW - 150.0f; // Start further back
@@ -2366,27 +2500,28 @@ void spawnNewVehicle() {
 
     // Create a new vehicle
     std::shared_ptr<Vehicle> newVehicle;
-    if (type == VehicleType::CAR) {
-        newVehicle = std::make_shared<Car>(spawnX, spawnY, spawnW, spawnH,
-            (rand() % 10) / 10.0f,
-            (rand() % 10) / 10.0f,
-            (rand() % 10) / 10.0f);
-    } else if (type == VehicleType::TRUCK) {
-        newVehicle = std::make_shared<Truck>(spawnX, spawnY, spawnW, spawnH,
-            (rand() % 10) / 10.0f,
-            (rand() % 10) / 10.0f,
-            (rand() % 10) / 10.0f);
-    } else {
-        newVehicle = std::make_shared<Bus>(spawnX, spawnY, spawnW, spawnH,
-            (rand() % 10) / 10.0f,
-            (rand() % 10) / 10.0f,
-            (rand() % 10) / 10.0f);
+    float r = (rand() % 10) / 10.0f, g = (rand() % 10) / 10.0f, b = (rand() % 10) / 10.0f;
+
+    switch(type) {
+        case VehicleType::CAR:
+            newVehicle = std::make_shared<Car>(spawnX, spawnY, spawnW, spawnH, r, g, b);
+            break;
+        case VehicleType::TRUCK:
+            newVehicle = std::make_shared<Truck>(spawnX, spawnY, spawnW, spawnH, r, g, b);
+            break;
+        case VehicleType::BUS:
+            newVehicle = std::make_shared<Bus>(spawnX, spawnY, spawnW, spawnH, r, g, b);
+            break;
+        case VehicleType::VAN:
+            newVehicle = std::make_shared<Van>(spawnX, spawnY, spawnW, spawnH, r, g, b);
+            break;
+        case VehicleType::SUV:
+            newVehicle = std::make_shared<SUV>(spawnX, spawnY, spawnW, spawnH, r, g, b);
+            break;
     }
 
     if (newVehicle->r < 0.1f && newVehicle->g < 0.1f && newVehicle->b < 0.1f) {
-        newVehicle->r = 0.2f;
-        newVehicle->g = 0.2f;
-        newVehicle->b = 0.2f;
+        newVehicle->r = 0.2f; newVehicle->g = 0.2f; newVehicle->b = 0.2f;
     }
 
     vehicles.push_back(newVehicle);
@@ -2843,27 +2978,17 @@ void updateTrafficLights() {
     bool isCrossing = HumansCrossing() > 0;
     int carsNearCrossing = countCarsNearCrossing();
     
-    // If humans are waiting and we're not already in the process of changing
     if (isWaiting && !trafficSignal->yellowLightOn) {
-        // Only change to red if:
-        // 1. There are enough humans waiting (more than MIN_HUMANS_FOR_PRIORITY)
-        // 2. OR there aren't enough cars to give them priority
         if (trafficSignal->lightState == TrafficLightState::GREEN && 
-            (HumansWaitingToCross() >= MIN_HUMANS_FOR_PRIORITY || 
-             carsNearCrossing < MIN_CARS_FOR_PRIORITY)) {
+            (HumansWaitingToCross() >= carsNearCrossing)) {
             trafficSignal->yellowLightOn = true;
             showTransitionDelay([&]() { trafficSignal->showRedLight(); }, 1000);
         }
     }
     
-    // If no humans are crossing and we were previously crossing
     if (!isCrossing && !trafficSignal->yellowLightOn) {
-        // Only change to green if:
-        // 1. There are enough cars to give them priority
-        // 2. OR there aren't enough humans waiting
         if (trafficSignal->lightState == TrafficLightState::RED && 
-            (carsNearCrossing >= MIN_CARS_FOR_PRIORITY || 
-             HumansWaitingToCross() < MIN_HUMANS_FOR_PRIORITY)) {
+            (carsNearCrossing >= HumansWaitingToCross())) {
             trafficSignal->yellowLightOn = true;
             showTransitionDelay([&]() { trafficSignal->showGreenLight(); }, 1000);
         }
