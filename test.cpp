@@ -258,6 +258,7 @@ const float USER_HUMAN_SPEED = 2.80f;
 const int MIN_TIME_BETWEEN_SPAWNS_CAR = 30;
 
 const int MAX_ACTIVE_HUMANS = 10;
+const int MAX_ACTIVE_VEHICLES = 8;
 const int MIN_TIME_BETWEEN_SPAWNS_HUMAN = 15;
 const float USER_HUMAN_SIDEWALK_SPEED_FACTOR = 1.2f;
 const int HUMAN_SPAWN_RATE_SIDEWALK = 120;
@@ -305,6 +306,7 @@ int lastHumanSpawnTime = 0;
 // Enums for Traffic and Pedestrian Lights
 enum class TrafficLightState { RED, GREEN };
 enum class VehicleType { CAR, TRUCK, BUS, VAN, SUV };
+enum class VehicleState { ACTIVE, DESPAWNED };
 enum class HumanState { 
     WALKING_ON_SIDEWALK,
     WAITING_AT_CROSSING_EDGE,
@@ -384,9 +386,7 @@ std::vector<std::shared_ptr<Drawable>> backgroundObjects;
 
 std::vector<std::shared_ptr<Vehicle>> vehicles; // Changed from Car
 std::vector<std::shared_ptr<AdvancedHuman>> activeHumans;
-std::vector<std::shared_ptr<Building>> backgroundBuildings;
 std::vector<std::shared_ptr<Tree>> trees; // Changed from Tree
-std::vector<std::shared_ptr<Cloud>> clouds;
 std::vector<std::shared_ptr<Star>> stars;
 std::vector<std::shared_ptr<StreetLamp>> streetLamps;
 
@@ -793,7 +793,6 @@ public:
     void reset() {
         state = HumanState::DESPAWNED;
         x = -1000.0f; // Move off-screen
-        y = -1000.0f; // Move off-screen
         stopWalking();
     }
 
@@ -1144,6 +1143,7 @@ public:
     float acceleration_rate;
     float deceleration_rate;
     VehicleType type;
+    VehicleState state;
     bool isHonking;
     int honkTimer;
     int honkDuration;
@@ -1161,10 +1161,34 @@ public:
           acceleration_rate(0.15f),
           deceleration_rate(0.25f),
           type(_type),
+          state(VehicleState::DESPAWNED),
           isHonking(false), honkTimer(0), honkDuration(0), isBlocked(false) {}
 
     virtual void draw() override = 0;
     virtual ~Vehicle() = default;
+
+    void reset() {
+        x = -width - 150.0f; // Start off-screen
+        current_speed = 0.0f;
+        target_speed = USER_CAR_SPEED_BASE * speedFactor;
+        isHonking = false;
+        honkTimer = 0;
+        honkDuration = 0;
+        isBlocked = false;
+        state = VehicleState::DESPAWNED;
+    }
+
+    void initialize(float startX, float startY, float _r, float _g, float _b) {
+        x = startX;
+        y = startY;
+        r = _r;
+        g = _g;
+        b = _b;
+        if (r < 0.1f && g < 0.1f && b < 0.1f) {
+            r = 0.2f; g = 0.2f; b = 0.2f;
+        }
+        state = VehicleState::ACTIVE;
+    }
 
     void updateSpeed() {
         if (current_speed < target_speed) {
@@ -1189,20 +1213,24 @@ public:
                 isHonking = true;
                 honkDuration = HONK_DURATION_MAX;
                 honkTimer = MIN_HONK_INTERVAL + (rand() % (MAX_HONK_INTERVAL - MIN_HONK_INTERVAL + 1));
-                std::string soundToPlay;
-                switch (type) {
-                    case VehicleType::CAR: soundToPlay = "car"; break;
-                    case VehicleType::TRUCK: soundToPlay = "truck"; break;
-                    case VehicleType::BUS: soundToPlay = "bus"; break;
-                    case VehicleType::VAN: soundToPlay = "truck"; break; // Vans can use the truck honk
-                    case VehicleType::SUV: soundToPlay = "car"; break;   // SUVs can use the car honk
-                    default: soundToPlay = "car";
+                
+                // Only play honk sound if music is on and simulation is not paused
+                if (MUSIC_ON && !IS_PAUSED) {
+                    std::string soundToPlay;
+                    switch (type) {
+                        case VehicleType::CAR: soundToPlay = "car"; break;
+                        case VehicleType::TRUCK: soundToPlay = "truck"; break;
+                        case VehicleType::BUS: soundToPlay = "bus"; break;
+                        case VehicleType::VAN: soundToPlay = "truck"; break; // Vans can use the truck honk
+                        case VehicleType::SUV: soundToPlay = "car"; break;   // SUVs can use the car honk
+                        default: soundToPlay = "car";
+                    }
+                    audioManager.playSound(soundToPlay, false);
                 }
-                audioManager.playSound(soundToPlay, false);
             }
         } else {
             if (!isBlocked) {
-                 honkTimer = 0;
+                honkTimer = 0;
             }
         }
     }
@@ -1242,7 +1270,7 @@ public:
                             blockedByVehicleAhead = true;
                             if (DEBUG_ON) {
                                 debugCalls.push_back([=]() {
-                                    std::string debugText = "Blocked by Vehicle Ahead at (" + std::to_string(v2->x) + ", " + std::to_string(v2->y) + ")";
+                                    std::string debugText = "Blocked by Vehicle Ahead";
                                     drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
                                 });
                             }
@@ -1296,7 +1324,8 @@ public:
     }
 
     void draw() override {
-        
+        if (state == VehicleState::DESPAWNED) return; // Only draw active vehicles
+
         glPushMatrix();
         glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  
         // Body
@@ -1370,6 +1399,8 @@ public:
     }
 
     void draw() override {
+        if (state == VehicleState::DESPAWNED) return; // Only draw active vehicles
+
         glPushMatrix();
         glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
         
@@ -1470,6 +1501,8 @@ public:
     }
 
     void draw() override {
+        if (state == VehicleState::DESPAWNED) return; // Only draw active vehicles
+
         glPushMatrix();
         glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);  // Translate entire vehicle up
 
@@ -1530,6 +1563,8 @@ public:
     }
 
     void draw() override {
+        if (state == VehicleState::DESPAWNED) return; // Only draw active vehicles
+
         glPushMatrix();
         glTranslatef(0, VEHICLE_WHEEL_OFFSET, 0);
 
@@ -1590,6 +1625,8 @@ public:
     }
 
     void draw() override {
+        if (state == VehicleState::DESPAWNED) return; // Only draw active vehicles
+
         glPushMatrix();
         glTranslatef(0, VEHICLE_WHEEL_OFFSET + 3.0f, 0); // Higher ground clearance
 
@@ -2214,15 +2251,14 @@ public:
 
 
 void initBuildings() {
-    backgroundBuildings.clear();
-    // A mix of new and old building types for variety
-    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
-    backgroundBuildings.push_back(std::make_shared<Shop>(220.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
-    backgroundBuildings.push_back(std::make_shared<Shop>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
-    backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(570.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
-    backgroundBuildings.push_back(std::make_shared<ModernOfficeBuilding>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
-    backgroundBuildings.push_back(std::make_shared<ClassicApartment>(440.0f, SIDEWALK_TOP_Y_END, 110.0f, 160.0f));
-    backgroundBuildings.push_back(std::make_shared<BrickBuilding>(800.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
+    backgroundObjects.push_back(std::static_pointer_cast<Drawable>(skyline));
+    backgroundObjects.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
+    backgroundObjects.push_back(std::make_shared<Shop>(220.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
+    backgroundObjects.push_back(std::make_shared<Shop>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
+    backgroundObjects.push_back(std::make_shared<GlassSkyscraper>(570.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
+    backgroundObjects.push_back(std::make_shared<ModernOfficeBuilding>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
+    backgroundObjects.push_back(std::make_shared<ClassicApartment>(440.0f, SIDEWALK_TOP_Y_END, 110.0f, 160.0f));
+    backgroundObjects.push_back(std::make_shared<BrickBuilding>(800.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
 }
 
 void initStreetLamps(int numLamps = 3) {
@@ -2242,14 +2278,18 @@ void initStreetLamps(int numLamps = 3) {
     // Upper sidewalk lamps
     for (int i = 0; i < numLamps; ++i) {
         float lampX = startX + i * spacing;
-        streetLamps.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START));
+        std::shared_ptr<StreetLamp> lamp = std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START);
+        streetLamps.push_back(lamp);
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(lamp));
     }
 
     // Lower sidewalk lamps with a phase shift
     const float phaseShift = 50.0f; // The amount of phase shift
     for (int i = 0; i < numLamps; ++i) {
         float lampX = startX + i * spacing + phaseShift;
-        streetLamps.push_back(std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END));
+        std::shared_ptr<StreetLamp> lamp = std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END);
+        streetLamps.push_back(lamp);
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(lamp));
     }
 }
 
@@ -2439,6 +2479,7 @@ public:
                 newBuilding.topBlockWidth = 20.0f + (rand() % 15);
                 newBuilding.topBlockHeight = 20.0f + (rand() % 30);
             }
+
             buildings.push_back(newBuilding);
 
             // No spacing between buildings
@@ -2640,97 +2681,107 @@ public:
 };
 
 void spawnNewVehicle() {
-    float spawnW, spawnH;
-    VehicleType type;
+    // Try to find a despawned vehicle to reuse
+    std::shared_ptr<Vehicle> vehicleToReuse = nullptr;
+    for (const auto& vehicle : vehicles) {
+        if (vehicle->state == VehicleState::DESPAWNED) {
+            vehicleToReuse = vehicle;
+            break;
+        }
+    }
 
-    // Randomly choose a vehicle type with new probabilities
-    int typeRoll = rand() % 20;
-    if (typeRoll < 8) {          // 40% Car
-        type = VehicleType::CAR;
-        spawnW = 80.0f; spawnH = 35.0f;
-    } else if (typeRoll < 11) {  // 15% SUV
-        type = VehicleType::SUV;
-        spawnW = 90.0f; spawnH = 45.0f;
-    } else if (typeRoll < 14) {  // 15% Van
-        type = VehicleType::VAN;
-        spawnW = 100.0f; spawnH = 50.0f;
-    } else if (typeRoll < 17) {  // 15% Truck
-        type = VehicleType::TRUCK;
-        spawnW = 150.0f; spawnH = 60.0f;
-    } else {                     // 15% Bus
-        type = VehicleType::BUS;
-        spawnW = 160.0f; spawnH = 50.0f;
+    // If no despawned vehicle found, do not spawn
+    if (!vehicleToReuse) return;
+
+    float spawnW, spawnH;
+    float wheel_radius;
+
+    // Get dimensions based on vehicle type
+    switch (vehicleToReuse->type) {
+        case VehicleType::CAR:
+            spawnW = 80.0f; spawnH = 35.0f;
+            break;
+        case VehicleType::SUV:
+            spawnW = 90.0f; spawnH = 45.0f;
+            break;
+        case VehicleType::VAN:
+            spawnW = 100.0f; spawnH = 50.0f;
+            break;
+        case VehicleType::TRUCK:
+            spawnW = 150.0f; spawnH = 60.0f;
+            break;
+        case VehicleType::BUS:
+            spawnW = 160.0f; spawnH = 50.0f;
+            break;
+    }
+
+    // Calculate wheel_radius for the current vehicle type based on draw implementation
+    if (vehicleToReuse->type == VehicleType::SUV) {
+        // SUV wheels use height * 0.3f
+        wheel_radius = spawnH * 0.3f;
+    } else {
+        // Other vehicles use height * 0.25f
+        wheel_radius = spawnH * 0.25f;
     }
 
     float spawnX = -spawnW - 150.0f; // Start further back
     float spawnY;
 
     if (rand() % 2 == 0) {
-        spawnY = ROAD_Y_BOTTOM + 8.0f; // Bottom lane
+        // Bottom lane: Position so the bottom of the wheel is at ROAD_Y_BOTTOM
+        // The effective drawn Y for the wheel center is (this->y + VEHICLE_WHEEL_OFFSET)
+        // The effective drawn Y for the bottom of the wheel is (this->y + VEHICLE_WHEEL_OFFSET) - wheel_radius
+        // So, we set: (spawnY + VEHICLE_WHEEL_OFFSET) - wheel_radius = ROAD_Y_BOTTOM
+        spawnY = ROAD_Y_BOTTOM + wheel_radius - VEHICLE_WHEEL_OFFSET;
     } else {
-        spawnY = ROAD_Y_TOP - 8.0f - spawnH; // Top lane
+        // Top lane: Position so the top of the vehicle is at ROAD_Y_TOP
+        // The effective drawn Y for the top of the vehicle is (this->y + VEHICLE_WHEEL_OFFSET) + spawnH
+        // (assuming spawnH covers the full drawn height from the internal y)
+        // So, we set: (spawnY + VEHICLE_WHEEL_OFFSET) + spawnH = ROAD_Y_TOP - 5.0f (small padding)
+        spawnY = ROAD_Y_TOP - spawnH - VEHICLE_WHEEL_OFFSET - 5.0f;
     }
-
-    // Sort vehicles by lanes to prevent overlap
-    std::sort(vehicles.begin(), vehicles.end(),
-        [](const std::shared_ptr<Vehicle>& a, const std::shared_ptr<Vehicle>& b) {
-            return a->y < b->y;  // Sort by y-coordinate (lane position)
-        });
 
     // Check for vehicle in the same lane to ensure proper spacing
     for (const auto &v : vehicles) {
-        if (fabs(v->y - spawnY) < CAR_SAME_LANE_Y_THRESHOLD) {
+        if (v->state == VehicleState::ACTIVE && fabs(v->y - spawnY) < CAR_SAME_LANE_Y_THRESHOLD) {
             if (v->x < spawnX + MIN_CAR_SPAWN_DISTANCE) {
-                // This check is a bit tricky, but we avoid spawning right on top
-                return; // Just skip spawning this frame if it's too crowded
+                return; // Skip spawning this frame if it's too crowded
             }
         }
     }
 
-    // Create a new vehicle
-    std::shared_ptr<Vehicle> newVehicle;
-    float r = (rand() % 10) / 10.0f, g = (rand() % 10) / 10.0f, b = (rand() % 10) / 10.0f;
+    float r = 0.4f + (rand() % 7) / 10.0f; // Ensure minimum brightness (0.4 to 1.0)
+    float g = 0.4f + (rand() % 7) / 10.0f; // Prevents blending with road at night
+    float b = 0.4f + (rand() % 7) / 10.0f;
 
-    switch(type) {
-        case VehicleType::CAR:
-            newVehicle = std::make_shared<Car>(spawnX, spawnY, spawnW, spawnH, r, g, b);
-            break;
-        case VehicleType::TRUCK:
-            newVehicle = std::make_shared<Truck>(spawnX, spawnY, spawnW, spawnH, r, g, b);
-            break;
-        case VehicleType::BUS:
-            newVehicle = std::make_shared<Bus>(spawnX, spawnY, spawnW, spawnH, r, g, b);
-            break;
-        case VehicleType::VAN:
-            newVehicle = std::make_shared<Van>(spawnX, spawnY, spawnW, spawnH, r, g, b);
-            break;
-        case VehicleType::SUV:
-            newVehicle = std::make_shared<SUV>(spawnX, spawnY, spawnW, spawnH, r, g, b);
-            break;
-    }
-
-    if (newVehicle->r < 0.1f && newVehicle->g < 0.1f && newVehicle->b < 0.1f) {
-        newVehicle->r = 0.2f; newVehicle->g = 0.2f; newVehicle->b = 0.2f;
-    }
-
-    vehicles.push_back(newVehicle);
+    // Just reinitialize the existing vehicle with new properties
+    vehicleToReuse->initialize(spawnX, spawnY, r, g, b);
 }
 
-
 void updateVehiclesStates() {
-    for (size_t i = 0; i < vehicles.size(); ++i) {
-        if (vehicles[i]->isOutOfScreen()) {
-            vehicles.erase(vehicles.begin() + i);
-            i--; // Decrement i to account for the erased element
+    // Update vehicle states and mark out-of-screen vehicles as despawned
+    for (auto& vehicle : vehicles) {
+        if (vehicle->state == VehicleState::ACTIVE) {
+            vehicle->update(); // Update vehicle position and behavior
+            if (vehicle->isOutOfScreen()) {
+                vehicle->reset(); // Mark as despawned instead of erasing
+            }
         }
     }
 
-    // Spawn new vehicles periodically
-    if (vehicles.size() < 8 && rand() % CAR_SPAWN_RATE == 0) {
+    // Count active vehicles
+    int activeCount = 0;
+    for (const auto& vehicle : vehicles) {
+        if (vehicle->state == VehicleState::ACTIVE) {
+            activeCount++;
+        }
+    }
+
+    // Spawn new vehicles if we're below max capacity
+    if (activeCount < MAX_ACTIVE_VEHICLES && rand() % CAR_SPAWN_RATE == 0) {
         spawnNewVehicle();
     }
 }
-
 
 void updateSky() {
         // Draw celestial bodies with smooth transitions
@@ -2899,7 +2950,7 @@ void drawRoadAndSidewalks()
 int countCarsNearCrossing() {
     int count = 0;
     for (const auto& v : vehicles) {
-        if (v->x < TRAFFIC_LIGHT_X && v->x > TRAFFIC_LIGHT_X - CAR_PRIORITY_THRESHOLD) {
+        if (v->state == VehicleState::ACTIVE && v->x < TRAFFIC_LIGHT_X && v->x > TRAFFIC_LIGHT_X - CAR_PRIORITY_THRESHOLD) {
             count++;
         }
     }
@@ -2971,64 +3022,14 @@ void drawZebraCrossing(float road_y_bottom, float road_y_top, float crossing_are
 
 void drawAll() {
 
-    // Clear the drawable objects list
-    drawableObjects.clear();
-    backgroundObjects.clear();
-
-    // Add the pre-initialized street lamps to drawableObjects
-    for (const auto& lamp : streetLamps) {
-        drawableObjects.push_back(lamp);
-    }
-
-    for (const auto& cloud : clouds) {
-        backgroundObjects.push_back(cloud);
-    }
-    backgroundObjects.push_back(skyline);
-    for (const auto& building : backgroundBuildings) {
-        backgroundObjects.push_back(building);
-    }
-
     drawGround();
     drawRoadAndSidewalks();
     drawZebraCrossing(ROAD_Y_BOTTOM, ROAD_Y_TOP, HUMAN_CROSSING_X_START, HUMAN_CROSSING_WIDTH);
-    
-    // Create and add vehicles
-    for (const auto& vehicle : vehicles) {
-        drawableObjects.push_back(std::static_pointer_cast<Drawable>(vehicle));
-    }
-    // Add traffic signal as an object
-    drawableObjects.push_back(trafficSignal);
-    // Add humans to drawable objects
-    for (const auto& human : activeHumans) {
-        // Only add non-despawned humans to the drawable list.
-        // This is actually wrong; all humans are always in activeHumans, and draw()
-        // handles not drawing despawned ones. So this loop will just pass all.
-        drawableObjects.push_back(std::static_pointer_cast<Drawable>(human));
-    }
-    // --- Add Post Boxes ---
-    drawableObjects.push_back(std::make_shared<PostBox>(130, SIDEWALK_TOP_Y_END - 8));
-    drawableObjects.push_back(std::make_shared<PostBox>(800, SIDEWALK_BOTTOM_Y_START + 8));
-    // --- Add Benches ---
-    drawableObjects.push_back(std::make_shared<Bench>(250, SIDEWALK_TOP_Y_END - 8));
-    drawableObjects.push_back(std::make_shared<Bench>(700, SIDEWALK_BOTTOM_Y_START + 8));
-
 
     //apply y-sorting
     std::sort(drawableObjects.begin(), drawableObjects.end(), [](const auto& a, const auto& b) {
         return a->y > b->y;
     });
-
-    // Add bushes and rocks
-    backgroundObjects.push_back(std::make_shared<Bush>(100, 60, 1.2f));
-    backgroundObjects.push_back(std::make_shared<Bush>(130, 50, 0.9f));
-    backgroundObjects.push_back(std::make_shared<Rock>(180, 45, 1.0f));
-
-    backgroundObjects.push_back(std::make_shared<Bush>(500, 80, 1.0f));
-    backgroundObjects.push_back(std::make_shared<Rock>(550, 70, 1.3f));
-    backgroundObjects.push_back(std::make_shared<Rock>(580, 75, 0.8f));
-
-    backgroundObjects.push_back(std::make_shared<Bush>(850, 55, 1.5f));
-    backgroundObjects.push_back(std::make_shared<Rock>(890, 40, 1.1f));
 
     // Draw background objects
     for (const auto& obj : backgroundObjects) {
@@ -3129,8 +3130,8 @@ void humanRunner() {
         }
     }
 
-    // If no despawned human found and we are at max capacity, do not spawn
-    if (!humanToReuse && activeHumans.size() >= MAX_ACTIVE_HUMANS) return;
+    // If no despawned human found, do not spawn - we should never create new humans
+    if (!humanToReuse) return;
 
     // --- Define some colors for variety ---
     Color redShirt = {0.8f, 0.2f, 0.2f}, tealShirt = {0.1f, 0.5f, 0.5f}, greenShirt = {0.2f, 0.6f, 0.2f};
@@ -3157,16 +3158,8 @@ void humanRunner() {
     float startY = startsOnBottomSidewalk ? (SIDEWALK_BOTTOM_Y_START + SIDEWALK_BOTTOM_Y_END) / 2.0f : (SIDEWALK_TOP_Y_START + SIDEWALK_TOP_Y_END) / 2.0f;
     bool willCross = (rand() % 3) == 0;
     
-    if (humanToReuse) {
-        // Reuse existing human object
-        humanToReuse->initialize(startX, startY, 100.0f, chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle, startsOnBottomSidewalk, willCross);
-    } else {
-        // Create a new human only if capacity allows
-        std::shared_ptr<AdvancedHuman> newHuman = std::make_shared<AdvancedHuman>();
-        newHuman->initialize(startX, startY, 100.0f, chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle, startsOnBottomSidewalk, willCross);
-        activeHumans.push_back(newHuman);
-        drawableObjects.push_back(std::static_pointer_cast<Drawable>(newHuman)); // Add to drawableObjects only once
-    }
+    // Reuse the existing human object
+    humanToReuse->initialize(startX, startY, 100.0f, chosenShirt, chosenPants, chosenSkin, chosenHair, chosenStyle, startsOnBottomSidewalk, willCross);
 
     lastHumanSpawnTime = timeNow();
 }
@@ -3265,7 +3258,7 @@ void updateAll(int)
         updateScene();
         frameCount++;
         // Resume music if not paused and desired
-        if (MUSIC_ON && !audioManager.isPlaying("traffic")) {
+        if (MUSIC_ON && !IS_PAUSED && !audioManager.isPlaying("traffic")) {
             audioManager.playSound("traffic", true);
             audioManager.playSound("people", true);
         }
@@ -3339,12 +3332,11 @@ void keyboard(unsigned char key, int x, int y) {
 }
 
 void initClouds() {
-    clouds.clear();
     for (int i = 0; i < 3; ++i) {
         float x = (rand() % WINDOW_WIDTH);
         float y = WINDOW_HEIGHT * (0.7f + (rand() % 30) / 100.0f);
         float size = 0.5f + (rand() % 20) / 100.0f;
-        clouds.push_back(std::make_shared<Cloud>(x, y, size));
+        backgroundObjects.push_back(std::make_shared<Cloud>(x, y, size));
     }
 }
 
@@ -3362,7 +3354,6 @@ void initHumans() {
     activeHumans.reserve(MAX_ACTIVE_HUMANS); // Pre-allocate memory
     for (int i = 0; i < MAX_ACTIVE_HUMANS; ++i) {
         std::shared_ptr<AdvancedHuman> newHuman = std::make_shared<AdvancedHuman>();
-        newHuman->reset(); // Ensure it starts in a despawned state
         activeHumans.push_back(newHuman);
         drawableObjects.push_back(std::static_pointer_cast<Drawable>(newHuman)); // Add to drawableObjects once
     }
@@ -3411,15 +3402,58 @@ void initOpenGL() {
     std::cout << "OpenGL initialization complete" << std::endl;
 }
 
-void init()
-{
-
-    initOpenGL();  // Initialize OpenGL settings
-
-    // Initialize vehicles
-    for (int i = 0; i < 4; ++i) {
+void initVehicles() {
+    vehicles.clear(); // Clear any existing vehicles
+    vehicles.reserve(MAX_ACTIVE_VEHICLES); // Pre-allocate memory
+    
+    // Create initial pool of vehicles
+    for (int i = 0; i < MAX_ACTIVE_VEHICLES; ++i) {
+        std::shared_ptr<Vehicle> newVehicle;
+        float r = (rand() % 10) / 10.0f;
+        float g = (rand() % 10) / 10.0f;
+        float b = (rand() % 10) / 10.0f;
+        
+        // Create a mix of different vehicle types
+        switch(i % 5) {
+            case 0:
+                newVehicle = std::make_shared<Car>(-1000.0f, 0.0f, 80.0f, 35.0f, r, g, b);
+                break;
+            case 1:
+                newVehicle = std::make_shared<Truck>(-1000.0f, 0.0f, 150.0f, 60.0f, r, g, b);
+                break;
+            case 2:
+                newVehicle = std::make_shared<Bus>(-1000.0f, 0.0f, 160.0f, 50.0f, r, g, b);
+                break;
+            case 3:
+                newVehicle = std::make_shared<Van>(-1000.0f, 0.0f, 100.0f, 50.0f, r, g, b);
+                break;
+            case 4:
+                newVehicle = std::make_shared<SUV>(-1000.0f, 0.0f, 90.0f, 45.0f, r, g, b);
+                break;
+        }
+        vehicles.push_back(newVehicle);
+        drawableObjects.push_back(newVehicle);
+    }
+    
+    // Spawn the first vehicle immediately
+    if (!vehicles.empty()) {
         spawnNewVehicle();
     }
+}
+
+void initRoadDecorators() {
+    drawableObjects.push_back(std::static_pointer_cast<Drawable>(trafficSignal));
+    drawableObjects.push_back(std::make_shared<PostBox>(130, SIDEWALK_TOP_Y_END - 8));
+    drawableObjects.push_back(std::make_shared<PostBox>(800, SIDEWALK_BOTTOM_Y_START + 8));
+    drawableObjects.push_back(std::make_shared<Bench>(250, SIDEWALK_TOP_Y_END - 8));
+    drawableObjects.push_back(std::make_shared<Bench>(700, SIDEWALK_BOTTOM_Y_START + 8));
+}
+
+void init()
+{
+    initOpenGL();  // Initialize OpenGL settings
+
+    initVehicles(); // Initialize vehicle pool
 
     initHumans();
 
@@ -3431,8 +3465,7 @@ void init()
 
     initStreetLamps();
 
-    // Initialize traffic signal - add it directly to drawableObjects
-    drawableObjects.push_back(trafficSignal);
+    initRoadDecorators();
 
     // Initialize audio system
     initAudio();
