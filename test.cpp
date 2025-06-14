@@ -253,7 +253,7 @@ public:
 };
 
 
-const float USER_CAR_SPEED_BASE = 3.5f;
+const float USER_CAR_SPEED_BASE = 3.0f;
 const float USER_HUMAN_SPEED = 2.80f;
 const int MIN_TIME_BETWEEN_SPAWNS_CAR = 30;
 
@@ -593,26 +593,29 @@ public:
     }
 
     void update() override {
-        bool isWaiting = HumansWaitingToCross() > 0;
-        bool isCrossing = HumansCrossing() > 0;
+        int numOfHumanWaiting = HumansWaitingToCross();
+        int numOfHumansCurrentlyCrossing = HumansCrossing();
         int carsNearCrossing = countCarsNearCrossing();
-        
-        if (isWaiting && !yellowLightOn) {
-            if (lightState == TrafficLightState::GREEN && 
-                (HumansWaitingToCross() >= carsNearCrossing)) {
-                yellowLightOn = true;
-                showTransitionDelay([&]() { showRedLight(); }, 1000);
-            }
-        }
-        
-        if (!isCrossing && !yellowLightOn) {
-            if (lightState == TrafficLightState::RED && 
-                (carsNearCrossing >= HumansWaitingToCross())) {
-                yellowLightOn = true;
-                showTransitionDelay([&]() { showGreenLight(); }, 1000);
-            }
+
+        bool isWaiting = numOfHumanWaiting > 0;
+        bool isCrossing = numOfHumansCurrentlyCrossing > 0;
+
+        if (yellowLightOn) return; // Prevent transition if already in yellow
+
+        // Decide which group to prioritize
+        bool prioritizeHumans = numOfHumanWaiting > carsNearCrossing;
+        if (numOfHumanWaiting == carsNearCrossing) prioritizeHumans = false; // Cars win on tie
+
+        if (lightState == TrafficLightState::GREEN && isWaiting && prioritizeHumans) {
+            yellowLightOn = true;
+            showTransitionDelay([&]() { showRedLight(); }, 1000); // Let humans cross
+        } 
+        else if (lightState == TrafficLightState::RED && !isCrossing && !prioritizeHumans) {
+            yellowLightOn = true;
+            showTransitionDelay([&]() { showGreenLight(); }, 1000); // Let cars go
         }
     }
+
 
     void draw() override {
         const float height = 60.0f;
@@ -1199,6 +1202,11 @@ public:
     }
 
     void updateHonk() {
+
+        if (x < -width || x > WINDOW_WIDTH) {
+            return;
+        }
+
         if (honkDuration > 0) {
             honkDuration--;
         } else {
@@ -1229,9 +1237,7 @@ public:
                 }
             }
         } else {
-            if (!isBlocked) {
-                honkTimer = 0;
-            }
+            honkTimer = 0;
         }
     }
 
@@ -1240,6 +1246,11 @@ public:
     }
 
     void update() override {
+
+        if (state != VehicleState::ACTIVE) {
+            return;
+        }
+
         target_speed = USER_CAR_SPEED_BASE * speedFactor;
 
         bool stoppedByLight = false;
