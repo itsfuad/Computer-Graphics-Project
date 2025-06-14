@@ -338,6 +338,10 @@ struct Rect {
     float x, y, w, h;
 };
 
+struct Point2D {
+    float x, y;
+};
+
 // Struct to manage animated smoke particles
 struct SmokeParticle {
     float x, y;
@@ -2300,6 +2304,68 @@ public:
     }
 };
 
+class BlurrySkyline : public Drawable {
+private:
+    struct BuildingProps {
+        float xOffset;
+        float height;
+        float width;
+        int topType;
+        float topBlockWidth;
+        float topBlockHeight;
+    };
+    std::vector<BuildingProps> buildings;
+
+public:
+    BlurrySkyline(float x, float y, float w, float h) : Drawable(x, y+5, w, h) {
+        float currentX = 0.0f; // Start relative to the object's x
+        while (currentX < width) {
+            BuildingProps newBuilding;
+            newBuilding.xOffset = currentX;
+            newBuilding.height = 50.0f + (rand() % 150); // Heights between 50 and 200
+            newBuilding.width = 40.0f; // Base width for the building
+
+            newBuilding.topType = rand() % 4; // 0: no special top, 1: smaller block, 2: slanted left, 3: slanted right
+            if (newBuilding.topType == 1) {
+                newBuilding.topBlockWidth = 20.0f + (rand() % 15);
+                newBuilding.topBlockHeight = 20.0f + (rand() % 30);
+            }
+            buildings.push_back(newBuilding);
+
+            // No spacing between buildings
+            currentX += newBuilding.width; 
+        }
+    }
+
+    void draw() override {
+
+        glPushMatrix();
+        glTranslatef(0, -5.0f, 0); // Shift drawing up by 5 pixels
+
+        // Set a fixed, opaque, faded gray color for the distant skyline
+        glColor3f(0.35f, 0.35f, 0.35f); // Opaque faded grey
+
+        for (const auto& building : buildings) {
+            // Draw the main rectangular part of the building
+            drawRect(x + building.xOffset, y, building.width, building.height);
+
+            // Add a smaller, slightly offset block on top or a slanted top
+            if (building.topType == 1) {
+                drawRect(x + building.xOffset + (building.width - building.topBlockWidth) / 2, y + building.height, building.topBlockWidth, building.topBlockHeight);
+            } else if (building.topType == 2) {
+                drawTriangle(x + building.xOffset, y + building.height,
+                             x + building.xOffset + building.width, y + building.height,
+                             x + building.xOffset, y + building.height + (building.width / 2.0f));
+            } else if (building.topType == 3) {
+                drawTriangle(x + building.xOffset, y + building.height,
+                             x + building.xOffset + building.width, y + building.height,
+                             x + building.xOffset + building.width, y + building.height + (building.width / 2.0f));
+            }
+        }
+        glPopMatrix();
+    }
+};
+
 class StreetLamp : public Drawable {
 public:
     StreetLamp(float x, float y) : Drawable(x, y, 36, 120) {}
@@ -2574,6 +2640,75 @@ void drawBackgroundScenes() {
 }
 
 
+// --- Bush Class ---
+class Bush : public Drawable {
+private:
+    // A small struct to hold the properties of a single "puff" of the bush
+    struct Puff {
+        float offsetX, offsetY;
+        float radius;
+        bool isDarker; // To store the color choice and keep it consistent
+    };
+
+    // This vector will store the entire shape of the bush
+    std::vector<Puff> puffs;
+
+public:
+    Bush(float x, float y, float scale) : Drawable(x, y, 50 * scale, 30 * scale) {
+        // --- This shape generation logic now runs only ONCE in the constructor ---
+        int num_puffs = 5 + (rand() % 4); // 5 to 8 puffs per bush
+        for (int i = 0; i < num_puffs; ++i) {
+            // Create a puff with random properties and add it to our vector
+            puffs.push_back({
+                (float)(rand() % (int)(30 * scale) - 15 * scale), // Random offsetX
+                (float)(rand() % (int)(15 * scale) - 7 * scale),  // Random offsetY
+                (10.0f + (rand() % 5)) * scale,                  // Random radius
+                (i % 2 == 0)                                     // Consistent color choice
+            });
+        }
+    }
+
+    void draw() override {
+        // The draw function now only reads the pre-calculated shape from the vector.
+        // No rand() calls here means the shape is stable and static every frame.
+        for (const auto& puff : puffs) {
+            if (puff.isDarker) {
+                setObjectColor(0.1f, 0.45f, 0.1f);
+            } else {
+                setObjectColor(0.15f, 0.5f, 0.15f);
+            }
+            // Draw the puff using its stored properties
+            drawCircle(x + puff.offsetX, y + puff.offsetY, puff.radius);
+        }
+    }
+};
+
+// --- Rock Class ---
+class Rock : public Drawable {
+private:
+    float scale;
+public:
+    Rock(float x, float y, float scl) : Drawable(x, y, 25 * scl, 15 * scl), scale(scl) {}
+
+    void draw() override {
+        // Draw an irregular polygon for the main rock shape
+        setObjectColor(0.5f, 0.5f, 0.55f); // Grey rock color
+        glBegin(GL_POLYGON);
+            glVertex2f(x, y);
+            glVertex2f(x + 20 * scale, y - 5 * scale);
+            glVertex2f(x + 30 * scale, y + 5 * scale);
+            glVertex2f(x + 25 * scale, y + 15 * scale);
+            glVertex2f(x + 10 * scale, y + 20 * scale);
+            glVertex2f(x - 5 * scale, y + 10 * scale);
+        glEnd();
+
+        // Add a darker line for a shadow/crack detail
+        setObjectColor(0.4f, 0.4f, 0.45f);
+        drawLine(x + 10 * scale, y + 20 * scale, x + 20 * scale, y - 5 * scale, 2.0f);
+    }
+};
+
+
 void drawGround() {
     setObjectColor(0.35f, 0.7f, 0.25f); // green ground
     glBegin(GL_QUADS);
@@ -2718,6 +2853,10 @@ void drawSceneObjects() {
     static std::vector<std::shared_ptr<StreetLamp>> streetLamps;
     static bool lampsInitialized = false;
 
+    // Static vector to store bushes, rocks, and skyline, initialized only once
+    static std::vector<std::shared_ptr<Drawable>> staticDecorations;
+    static bool decorationsInitialized = false;
+
     // Initialize street lamps only once
     if (!lampsInitialized) {
         const int numLamps = 3; // Define N here, you can change this value
@@ -2750,9 +2889,34 @@ void drawSceneObjects() {
         lampsInitialized = true;
     }
 
+    // Initialize bushes, rocks, and skyline only once
+    if (!decorationsInitialized) {
+        // Add the blurry skyline first (so it's drawn behind other decorations)
+        staticDecorations.push_back(std::make_shared<BlurrySkyline>(0, SIDEWALK_TOP_Y_END, WINDOW_WIDTH, 100));
+
+        // Add bushes and rocks
+        staticDecorations.push_back(std::make_shared<Bush>(100, 60, 1.2f));
+        staticDecorations.push_back(std::make_shared<Bush>(130, 50, 0.9f));
+        staticDecorations.push_back(std::make_shared<Rock>(180, 45, 1.0f));
+
+        staticDecorations.push_back(std::make_shared<Bush>(500, 80, 1.0f));
+        staticDecorations.push_back(std::make_shared<Rock>(550, 70, 1.3f));
+        staticDecorations.push_back(std::make_shared<Rock>(580, 75, 0.8f));
+
+        staticDecorations.push_back(std::make_shared<Bush>(850, 55, 1.5f));
+        staticDecorations.push_back(std::make_shared<Rock>(890, 40, 1.1f));
+
+        decorationsInitialized = true;
+    }
+
     // Add the pre-initialized street lamps to drawableObjects
     for (const auto& lamp : streetLamps) {
         drawableObjects.push_back(lamp);
+    }
+
+    // Add the pre-initialized decorations (skyline, bushes, rocks) to drawableObjects
+    for (const auto& decoration : staticDecorations) {
+        drawableObjects.push_back(decoration);
     }
 
     for (const auto& building : backgroundBuildings) {
@@ -3139,16 +3303,11 @@ void init()
     backgroundBuildings.clear();
     // A mix of new and old building types for variety
     backgroundBuildings.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
-    backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(220.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
-    
-    // Add new building types
-    backgroundBuildings.push_back(std::make_shared<ModernOfficeBuilding>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
+    backgroundBuildings.push_back(std::make_shared<Shop>(220.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
+    backgroundBuildings.push_back(std::make_shared<Shop>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
+    backgroundBuildings.push_back(std::make_shared<GlassSkyscraper>(570.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
+    backgroundBuildings.push_back(std::make_shared<ModernOfficeBuilding>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
     backgroundBuildings.push_back(std::make_shared<ClassicApartment>(440.0f, SIDEWALK_TOP_Y_END, 110.0f, 160.0f));
-
-    // Add some shops
-    backgroundBuildings.push_back(std::make_shared<Shop>(570.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
-    backgroundBuildings.push_back(std::make_shared<Shop>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
-
     backgroundBuildings.push_back(std::make_shared<BrickBuilding>(800.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
 
 
