@@ -1,10 +1,8 @@
 # depslib dependency file v1.0
-1749713371 source:d:\dev\opengl\project\main.cpp
-	<GL/glut.h>
-	<cmath>
-	<iostream>
-	<vector>
-	<algorithm>
+1749987017 source:d:\dev\opengl\project\main.cpp
+	"masud.h"
+	"fuad.h"
+	"welcome.h"
 
 1426328128 c:\program files\codeblocks\mingw\x86_64-w64-mingw32\include\gl\glut.h
 	"freeglut_std.h"
@@ -875,4 +873,46 @@
 
 1526093414 c:\program files\codeblocks\mingw\x86_64-w64-mingw32\include\gl\glu.h
 	<GL/gl.h>
+
+1749987096 d:\dev\opengl\project\masud.h
+	<GL/glut.h>
+	<GL/gl.h>
+	<iostream>
+	<windows.h>
+	<math.h>
+
+1526093416 c:\program files\codeblocks\mingw\x86_64-w64-mingw32\include\math.h
+	<crtdefs.h>
+
+1749987026 d:\dev\opengl\project\fuad.h
+	<GL/glut.h>
+	<GL/gl.h>
+	<iostream>
+	<vector>
+	<cmath>
+	<cstdlib>
+	<ctime>
+	<algorithm>
+	<memory>
+	<chrono>
+	<functional>
+	<random>
+	<string>
+	<unordered_map>
+	"audio.h"
+
+1749979208 d:\dev\opengl\project\audio.h
+	<AL/al.h>
+	<AL/alc.h>
+
+1743178048 c:\program files\codeblocks\mingw\x86_64-w64-mingw32\include\al\al.h
+
+1743178048 c:\program files\codeblocks\mingw\x86_64-w64-mingw32\include\al\alc.h
+
+1749986971 d:\dev\opengl\project\welcome.h
+	<GL/glut.h>
+	<GL/gl.h>
+	<string>
+	<vector>
+	<cmath>
 
