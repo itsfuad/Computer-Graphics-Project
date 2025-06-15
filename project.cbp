@@ -42,7 +42,11 @@
 			<Add library="gdi32" />
 			<Add directory="C:/Program Files/CodeBlocks/MinGW/x86_64-w64-mingw32/lib" />
 		</Linker>
+		<Unit filename="audio.h" />
+		<Unit filename="fuad.h" />
 		<Unit filename="main.cpp" />
+		<Unit filename="masud.h" />
+		<Unit filename="welcome.h" />
 		<Extensions>
 			<lib_finder disable_auto="1" />
 		</Extensions>
