@@ -467,11 +467,14 @@ namespace Fuad {
             if (yellowLightOn) {
                 
                 if ((frameCount / YELLOW_BLINK_INTERVAL) % 2 == 0) { 
+                    audioManager.playSound("beep", true);
                     glColor3f(0.9f, 0.0f, 0.0f); 
                     drawHumanShape(x + 5, y + 85, 0.8, 0); 
                 }
             } else {
-                
+                if (audioManager.isPlaying("beep")) {
+                    audioManager.stopSound("beep");
+                }
                 if (lightState == TrafficLightState::RED) {
                     glColor3f(0.0f, 0.9f, 0.0f);
                 } else {
@@ -2943,7 +2946,7 @@ namespace Fuad {
         if (currentTimeOfDay >= 1.0f) {
             currentTimeOfDay -= 1.0f;
         }
-        isNight = (currentTimeOfDay > 0.75 || currentTimeOfDay < 0.22);
+        isNight = (currentTimeOfDay > 0.65 || currentTimeOfDay < 0.25);
     }
 
     static std::function<void()> g_pendingCallback = nullptr;
@@ -3028,8 +3031,10 @@ namespace Fuad {
             audioManager.loadSound("bus", "D:/dev/OpenGL/project/audio/bus.wav");
             
             audioManager.loadSound("truck", "D:/dev/OpenGL/project/audio/truck.wav");
+
+            audioManager.loadSound("beep", "D:/dev/OpenGL/project/audio/beep.wav");
             
-            audioManager.playSound("traffic", true);  
+            audioManager.playSound("traffic", true);
             audioManager.playSound("people", true);
         }
     }
