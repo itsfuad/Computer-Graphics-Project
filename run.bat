@@ -4,7 +4,7 @@ cls
 echo Compiling...
 g++.exe -Wall -g ^
   -I"C:\Program Files\CodeBlocks\MinGW\x86_64-w64-mingw32\include" ^
-  -c D:\dev\OpenGL\man_walk\test.cpp -o obj\Debug\test.o
+  -c D:\dev\OpenGL\man_walk\main.cpp -o obj\Debug\main.o
 
 if errorlevel 1 (
   echo Compilation failed.
@@ -13,7 +13,7 @@ if errorlevel 1 (
 
 echo Linking...
 g++.exe -L"C:\Program Files\CodeBlocks\MinGW\x86_64-w64-mingw32\lib" ^
-  -o bin\Debug\test.exe obj\Debug\test.o ^
+  -o bin\Debug\main.exe obj\Debug\main.o ^
   -lfreeglut -lopengl32 -lglu32 -lwinmm -lgdi32 -lopenal32
 
 if errorlevel 1 (
@@ -22,4 +22,4 @@ if errorlevel 1 (
 )
 
 echo Running...
-bin\Debug\test.exe
+bin\Debug\main.exe

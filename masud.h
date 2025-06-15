@@ -1116,7 +1116,7 @@ namespace Masud {
     float cloudX = 0.0f;
     float vehicleSpeed = 1.0f;
     float FTrainX=-900.0f;
-    float sTrainSpeed=1.0f;
+    float sTrainSpeed=2.0f;
 
 
     void FupdateCloud(int value) {
@@ -2450,19 +2450,34 @@ namespace Masud {
     }
 
     void updateScene(int value) {
+        
         glutPostRedisplay();
+
         FupdateBird(0);
         FupdateVehicles(0);
         FupdateBoat(0);
         FupdateBoatNight(0);
         FupdateCloud(0);
-        glutTimerFunc(5, updateScene, 0);
     }
 
     bool hasInit = false;
     
     void initScene() {
         if (hasInit) return;
+
+        FisDay=true;
+        busX = 0.0f;
+        car1X = 0.0f;
+        car2X = 0.0f;
+        car3X = 0.0f;
+        truckX = 0.0f;
+        truck2X = 0.0f;
+        boatX = 0.0f;
+        boatY = 0.0f;
+        cloudX = 0.0f;
+        vehicleSpeed = 1.0f;
+        FTrainX=-900.0f;
+        sTrainSpeed=2.0f;
         
         // Initialize any Masud scene specific resources here
         glClearColor(0.52f, 0.8f, 0.92f, 1.0f);  // Sky blue for day mode
@@ -2471,11 +2486,13 @@ namespace Masud {
         vehicleSpeed = 1.0f;
         
         hasInit = true;
+
+        std::cout << "Masud's scene initialized." << std::endl;
     }
     
     void cleanupScene() {
-        // Cleanup any Masud scene specific resources here
         hasInit = false;
+        std::cout << "Masud's scene cleaned up." << std::endl;
     }
 }
 
