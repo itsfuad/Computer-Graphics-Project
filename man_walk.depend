@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1749713371 source:d:\dev\opengl\man_walk\main.cpp
+1749713371 source:d:\dev\opengl\project\main.cpp
 	<GL/glut.h>
 	<cmath>
 	<iostream>

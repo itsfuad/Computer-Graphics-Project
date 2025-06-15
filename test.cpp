@@ -1,5 +1,3 @@
-#pragma once
-
 #include <GL/glut.h>
 #include <iostream>
 #include <vector>
@@ -11,14 +9,250 @@
 #include <chrono>
 #include <functional>
 #include <random>
+#include <AL/al.h>
+#include <AL/alc.h>
 #include <string>
 #include <unordered_map>
-#include "audio.h"
+
+#include "masud.h"
 
 #define M_PI 3.14159265358979323846
-
 const int WINDOW_WIDTH = 1000;
 const int WINDOW_HEIGHT = 600;
+
+class AudioManager {
+private:
+    ALCdevice* device;
+    ALCcontext* context;
+    std::unordered_map<std::string, ALuint> buffers;
+    std::unordered_map<std::string, ALuint> sources;
+    bool isInitialized;
+
+    void cleanupSource(const std::string& name) {
+        if (sources.find(name) != sources.end()) {
+            alSourceStop(sources[name]);
+            alDeleteSources(1, &sources[name]);
+            sources.erase(name);
+        }
+    }
+
+public:
+    AudioManager() : device(nullptr), context(nullptr), isInitialized(false) {}
+
+    bool initialize() {
+        if (isInitialized) return true;
+
+        device = alcOpenDevice(nullptr);
+        if (!device) {
+            std::cerr << "Failed to open audio device" << std::endl;
+            return false;
+        }
+
+        context = alcCreateContext(device, nullptr);
+        if (!context) {
+            std::cerr << "Failed to create audio context" << std::endl;
+            alcCloseDevice(device);
+            return false;
+        }
+
+        alcMakeContextCurrent(context);
+        ALenum error = alGetError(); 
+        if (error != AL_NO_ERROR) {
+            std::cerr << "OpenAL error after making context current: " << alGetString(error) << std::endl;
+        }
+        isInitialized = true;
+        std::cerr << "AudioManager initialized successfully." << std::endl;
+        return true;
+    }
+
+    bool loadSound(const std::string& name, const std::string& filePath) {
+        if (!isInitialized) return false;
+
+        ALuint buffer;
+        alGenBuffers(1, &buffer);
+        ALenum error = alGetError();
+        if (error != AL_NO_ERROR) {
+            std::cerr << "OpenAL error generating buffer: " << alGetString(error) << std::endl;
+            return false;
+        }
+
+        FILE* file = fopen(filePath.c_str(), "rb");
+        if (!file) {
+            std::cerr << "Failed to open sound file: " << filePath << std::endl;
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        char riffChunkID[4];
+        long riffChunkSize;
+        char waveFormat[4];
+        if (fread(riffChunkID, 1, 4, file) != 4 || memcmp("RIFF", riffChunkID, 4) != 0 ||
+            fread(&riffChunkSize, 4, 1, file) != 1 ||
+            fread(waveFormat, 1, 4, file) != 4 || memcmp("WAVE", waveFormat, 4) != 0) {
+            std::cerr << "Not a valid RIFF/WAVE file: " << filePath << std::endl;
+            fclose(file);
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        short audioFormat = 0;
+        short numChannels = 0;
+        int sampleRate = 0;
+        short bitsPerSample = 0;
+        int dataSize = 0;
+        ALenum format = 0;
+
+        while (!feof(file)) {
+            char chunkID[4];
+            int chunkSize;
+            if (fread(chunkID, 1, 4, file) != 4 || fread(&chunkSize, 4, 1, file) != 1) {
+                if (feof(file)) break; 
+                std::cerr << "Failed to read WAV chunk header for file: " << filePath << std::endl;
+                fclose(file);
+                alDeleteBuffers(1, &buffer);
+                return false;
+            }
+
+            if (memcmp("fmt ", chunkID, 4) == 0) {
+                if (chunkSize < 16) { 
+                    std::cerr << "WAV fmt chunk too small for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+                char fmtData[16]; 
+                if (fread(fmtData, 1, 16, file) != 16) {
+                    std::cerr << "Failed to read fmt data for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+                audioFormat = *(short*)&fmtData[0];
+                numChannels = *(short*)&fmtData[2];
+                sampleRate = *(int*)&fmtData[4];
+                bitsPerSample = *(short*)&fmtData[14];
+
+                
+                if (audioFormat != 1) { 
+                    std::cerr << "Unsupported WAV audio format (not PCM): " << audioFormat << " for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+
+                if (numChannels == 1 && bitsPerSample == 8) format = AL_FORMAT_MONO8;
+                else if (numChannels == 1 && bitsPerSample == 16) format = AL_FORMAT_MONO16;
+                else if (numChannels == 2 && bitsPerSample == 8) format = AL_FORMAT_STEREO8;
+                else if (numChannels == 2 && bitsPerSample == 16) format = AL_FORMAT_STEREO16;
+                else {
+                    std::cerr << "Unsupported WAV format: channels=" << numChannels << ", bits=" << bitsPerSample << " for file: " << filePath << std::endl;
+                    fclose(file);
+                    alDeleteBuffers(1, &buffer);
+                    return false;
+                }
+                
+                if (chunkSize > 16) {
+                    fseek(file, chunkSize - 16, SEEK_CUR);
+                }
+            } else if (memcmp("data", chunkID, 4) == 0) {
+                dataSize = chunkSize;
+                break; 
+            } else {
+                
+                fseek(file, chunkSize, SEEK_CUR);
+            }
+        }
+
+        if (format == 0 || dataSize == 0) {
+            std::cerr << "Missing or invalid 'fmt ' or 'data' chunk in WAV file: " << filePath << std::endl;
+            fclose(file);
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        std::vector<unsigned char> data(dataSize);
+        if (fread(data.data(), 1, dataSize, file) != static_cast<size_t>(dataSize)) {
+            std::cerr << "Failed to read audio data from " << filePath << std::endl;
+            fclose(file);
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+        fclose(file);
+
+        std::cerr << "Loading " << name << " - Format: " << format << " (Channels: " << numChannels << ", Bits: " << bitsPerSample << "), Size: " << dataSize << ", Sample Rate: " << sampleRate << std::endl;
+
+        alBufferData(buffer, format, data.data(), dataSize, sampleRate);
+        error = alGetError();
+        if (error != AL_NO_ERROR) {
+            std::cerr << "Failed to buffer audio data from " << filePath << ": " << alGetString(error) << std::endl;
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        buffers[name] = buffer;
+        std::cerr << "Sound loaded successfully: " << name << " from " << filePath << std::endl;
+        return true;
+    }
+
+    void playSound(const std::string& name, bool loop = false) {
+        if (!isInitialized || buffers.find(name) == buffers.end()) return;
+
+        cleanupSource(name);
+
+        ALuint source;
+        alGenSources(1, &source);
+
+        alSourcei(source, AL_BUFFER, buffers[name]);
+        alSourcei(source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+        alSourcef(source, AL_GAIN, 0.5f);
+
+        alSourcePlay(source);
+        sources[name] = source;
+    }
+
+    void stopSound(const std::string& name) {
+        if (!isInitialized) return;
+        cleanupSource(name);
+    }
+
+    void setVolume(const std::string& name, float volume) {
+        if (!isInitialized || sources.find(name) == sources.end()) return;
+        alSourcef(sources[name], AL_GAIN, std::max(0.0f, std::min(1.0f, volume)));
+    }
+
+    bool isPlaying(const std::string& name) {
+        if (!isInitialized || sources.find(name) == sources.end()) return false;
+        ALint state;
+        alGetSourcei(sources[name], AL_SOURCE_STATE, &state);
+        return state == AL_PLAYING;
+    }
+
+    void cleanup() {
+        if (!isInitialized) return;
+
+        for (const auto& source : sources) {
+            alSourceStop(source.second);
+            alDeleteSources(1, &source.second);
+        }
+        sources.clear();
+
+        for (const auto& buffer : buffers) {
+            alDeleteBuffers(1, &buffer.second);
+        }
+        buffers.clear();
+
+        alcMakeContextCurrent(nullptr);
+        alcDestroyContext(context);
+        alcCloseDevice(device);
+        isInitialized = false;
+
+        std::cout << "Audio manager cleaned!" << std::endl;
+    }
+
+    ~AudioManager() {
+        cleanup();
+    }
+};
 
 namespace Fuad {
 
@@ -76,6 +310,10 @@ namespace Fuad {
     const float VEHICLE_WHEEL_OFFSET = 5.0f;  
 
 
+
+
+
+
     struct Color {
         float r, g, b;
     };
@@ -109,6 +347,7 @@ namespace Fuad {
     std::vector<std::function<void()>> debugCalls;
 
     AudioManager audioManager;
+
 
     class Vehicle;
     class Human;
@@ -3215,4 +3454,171 @@ namespace Fuad {
 
         std::cout << "Fuad's scene cleaned up" << std::endl;
     }
+}
+
+int currentScene = 1;
+int numOfScene = 2;
+
+// Global scene management
+void cleanupCurrentScene() {
+    switch (currentScene) {
+        case 1:
+            Fuad::cleanupScene();
+            break;
+        case 2:
+            Masud::cleanupScene();
+            break;
+    }
+}
+
+void initCurrentScene() {
+    switch (currentScene) {
+        case 1:
+            Fuad::initScene();
+            break;
+        case 2:
+            Masud::initScene();
+            break;
+    }
+}
+
+void switchScene(int newScene) {
+    if (newScene < 0 || newScene > numOfScene) return;
+    
+    // Cleanup current scene
+    cleanupCurrentScene();
+    
+    // Switch to new scene
+    currentScene = newScene;
+    
+    // Initialize new scene
+    initCurrentScene();
+}
+
+void specialKeyboard(int key, int x, int y) {
+    switch (key) {
+        case GLUT_KEY_RIGHT:
+            if (currentScene < numOfScene) {
+                switchScene(currentScene + 1);
+            }
+            break;
+        case GLUT_KEY_LEFT:
+            if (currentScene > 0) {
+                switchScene(currentScene - 1);
+            }
+            break;
+    }
+    
+    // Handle scene-specific special keys
+    switch (currentScene) {
+        case 1:
+            // Fuad's scene doesn't use special keys
+            break;
+        case 2:
+            Masud::specialKeyboard(key, x, y);
+            break;
+    }
+}
+
+void handleKeyboard(unsigned char key, int x, int y) {
+    // Handle keyboard input
+    switch (currentScene) {
+        case 1:
+            Fuad::keyboard(key, x, y);
+        break;
+        case 2:
+            Masud::keyboard(key, x, y);
+        break;
+    }
+}
+
+void handleMouse(int button, int state, int x, int y) {
+    // Handle mouse input
+    switch (currentScene) {
+        case 1:
+            //Fuad::mouse(button, state, x, y);
+        break;
+        case 2:
+            Masud::mouse(button, state, x, y);
+        break;
+    }
+}
+
+void updateFunc(int value) {
+    // Update the scene
+    switch (currentScene) {
+        case 1:
+            Fuad::updateScene(value);
+        break;
+        case 2:
+            Masud::updateScene(value);
+        break;
+    }
+    glutTimerFunc(1000 / 60, updateFunc, 0);
+}
+
+void displayFunc() {
+    switch (currentScene) {
+        case 1:
+            Fuad::display();
+        break;
+        case 2:
+            Masud::display();
+        break;
+    }
+}
+
+
+
+
+void initGLUT(int argc, char **argv) {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_ALPHA);
+    glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+    glutCreateWindow("Enhanced Traffic Simulation");
+
+    std::cout << "Initializing OpenGL..." << std::endl;
+    
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0.0, WINDOW_WIDTH, 0.0, WINDOW_HEIGHT);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    srand(time(0));
+
+    std::cout << "OpenGL initialization complete" << std::endl;
+}
+
+
+int main(int argc, char **argv) {
+
+    initGLUT(argc, argv);
+
+    std::cout << "Initializing scene..." << std::endl;
+
+    initCurrentScene();
+
+    glutDisplayFunc(displayFunc);
+    glutTimerFunc(0, updateFunc, 0);
+    glutKeyboardFunc(handleKeyboard);
+    glutSpecialFunc(specialKeyboard);
+    glutMouseFunc(handleMouse);
+    
+    std::cout << "--- Controls ---" << std::endl;
+    std::cout << "P: Pause/Play" << std::endl;
+    std::cout << "D: Toggle Debug Bounding Boxes" << std::endl;
+    std::cout << "N: Toggle Day/Night" << std::endl;
+    std::cout << "M: Toggle Background Traffic Sound" << std::endl;
+    std::cout << "ESC: Exit" << std::endl;
+    
+    std::cout << "Entering main loop..." << std::endl;
+    glutMainLoop();
+
+    //audioManager.cleanup();
+    return 0;
 }
