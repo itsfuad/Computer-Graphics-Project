@@ -3429,10 +3429,102 @@ namespace Fuad {
 
         hasInit = true;
     }
-}
 
+    void cleanupScene() {
+
+        audioManager.cleanup();
+                
+        // Clear all objects
+        vehicles.clear();
+        activeHumans.clear();
+        drawableObjects.clear();
+        backgroundObjects.clear();
+        trees.clear();
+        stars.clear();
+        streetLamps.clear();
+        
+        // Reset state
+        hasInit = false;
+        IS_PAUSED = false;
+        DEBUG_ON = false;
+        MUSIC_ON = true;
+        showWarningMessage = false;
+        lastCarSpawnTime = 0;
+        lastHumanSpawnTime = 0;
+        currentTimeOfDay = 0.3f;
+        isNight = false;
+        frameCount = 0;
+    }
+}
 int currentScene = 1;
 int numOfScene = 2;
+
+
+// Global scene management
+void cleanupCurrentScene() {
+    switch (currentScene) {
+        case 1:
+            Fuad::cleanupScene();
+            break;
+        case 2:
+            Masud::cleanupScene();
+            break;
+    }
+}
+
+void initCurrentScene() {
+    switch (currentScene) {
+        case 1:
+            Fuad::initScene();
+            break;
+        case 2:
+            Masud::initScene();
+            break;
+    }
+}
+
+void switchScene(int newScene) {
+    if (newScene < 0 || newScene > numOfScene) return;
+    
+    // Cleanup current scene
+    cleanupCurrentScene();
+    
+    // Switch to new scene
+    currentScene = newScene;
+    
+    // Initialize new scene
+    initCurrentScene();
+}
+
+void specialKeyboard(int key, int x, int y) {
+    switch (key) {
+        case GLUT_KEY_RIGHT:
+            if (currentScene < numOfScene) {
+                switchScene(currentScene + 1);
+            }
+            break;
+        case GLUT_KEY_LEFT:
+            if (currentScene > 0) {
+                switchScene(currentScene - 1);
+            }
+            break;
+    }
+    
+    // Handle scene-specific special keys
+    switch (currentScene) {
+        case 1:
+            // Fuad's scene doesn't use special keys
+            break;
+        case 2:
+            Masud::specialKeyboard(key, x, y);
+            break;
+    }
+}
+
+void init() {
+    // Initialize the first scene
+    initCurrentScene();
+}
 
 void handleKeyboard(unsigned char key, int x, int y) {
     // Handle keyboard input
@@ -3442,30 +3534,6 @@ void handleKeyboard(unsigned char key, int x, int y) {
         break;
         case 2:
             Masud::keyboard(key, x, y);
-        break;
-    }
-}
-
-void specialKeyboard(int key, int x, int y) {
-    switch (key) {
-        case GLUT_KEY_RIGHT:
-            if (currentScene < numOfScene) {
-                currentScene++;
-            }
-        break;
-        case GLUT_KEY_LEFT:
-            if (currentScene > 0) {
-                currentScene--;
-            }
-        break;
-    }
-    
-    switch (currentScene) {
-        case 1:
-
-        break;
-        case 2:
-            Masud::specialKeyboard(key, x, y);
         break;
     }
 }
@@ -3505,18 +3573,7 @@ void displayFunc() {
     }
 }
 
-void init()
-{
-    // Init scene Here
-    switch (currentScene) {
-        case 1:
-            Fuad::initScene();
-        break;
-        case 2:
 
-        break;
-    }
-}
 
 
 void initGLUT(int argc, char **argv) {

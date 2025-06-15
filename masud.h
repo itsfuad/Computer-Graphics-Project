@@ -2458,6 +2458,25 @@ namespace Masud {
         FupdateCloud(0);
         glutTimerFunc(5, updateScene, 0);
     }
+
+    bool hasInit = false;
+    
+    void initScene() {
+        if (hasInit) return;
+        
+        // Initialize any Masud scene specific resources here
+        glClearColor(0.52f, 0.8f, 0.92f, 1.0f);  // Sky blue for day mode
+        FisDay = true;
+        moveUp = 0.0f;
+        vehicleSpeed = 1.0f;
+        
+        hasInit = true;
+    }
+    
+    void cleanupScene() {
+        // Cleanup any Masud scene specific resources here
+        hasInit = false;
+    }
 }
 
 
