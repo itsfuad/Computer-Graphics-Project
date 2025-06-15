@@ -3340,6 +3340,8 @@ namespace Fuad {
         }
         
         drawDebugOverlay();
+
+        glutSwapBuffers();
     }
 
     void keyboard(unsigned char key, int x, int y) {
@@ -3401,7 +3403,12 @@ namespace Fuad {
         glutPostRedisplay();
     }
 
+    bool hasInit = false;
+
     void initScene() {
+
+        if (hasInit) return;
+
         initVehicles(); 
 
         initHumans();
@@ -3419,53 +3426,100 @@ namespace Fuad {
         initGroundDecorator();  
 
         initAudio();
+
+        hasInit = true;
     }
 }
 
+int currentScene = 1;
+int numOfScene = 2;
+
 void handleKeyboard(unsigned char key, int x, int y) {
     // Handle keyboard input
-    //Fuad::keyboard(key, x, y);
-    Masud::keyboard(key, x, y);
+    switch (currentScene) {
+        case 1:
+            Fuad::keyboard(key, x, y);
+        break;
+        case 2:
+            Masud::keyboard(key, x, y);
+        break;
+    }
 }
 
 void specialKeyboard(int key, int x, int y) {
-    Masud::specialKeyboard(key, x, y);
+    switch (key) {
+        case GLUT_KEY_RIGHT:
+            if (currentScene < numOfScene) {
+                currentScene++;
+            }
+        break;
+        case GLUT_KEY_LEFT:
+            if (currentScene > 0) {
+                currentScene--;
+            }
+        break;
+    }
+    
+    switch (currentScene) {
+        case 1:
+
+        break;
+        case 2:
+            Masud::specialKeyboard(key, x, y);
+        break;
+    }
 }
 
 void handleMouse(int button, int state, int x, int y) {
     // Handle mouse input
-    //Fuad::mouse(button, state, x, y);
-    Masud::mouse(button, state, x, y);
+    switch (currentScene) {
+        case 1:
+            //Fuad::mouse(button, state, x, y);
+        break;
+        case 2:
+            Masud::mouse(button, state, x, y);
+        break;
+    }
 }
 
 void updateFunc(int value) {
     // Update the scene
-    //Fuad::updateScene(value);
-
-    Masud::updateScene(value);
+    switch (currentScene) {
+        case 1:
+            Fuad::updateScene(value);
+        break;
+        case 2:
+            Masud::updateScene(value);
+        break;
+    }
 }
 
 void displayFunc() {
-    // put display here
-    //Fuad::display();
-
-    Masud::display();
-
-    glDisable(GL_BLEND);
-    glutSwapBuffers();
-    //glClear(GL_COLOR_BUFFER_BIT);  // Removing this line as it's already handled in Masud's display
+    switch (currentScene) {
+        case 1:
+            Fuad::display();
+        break;
+        case 2:
+            Masud::display();
+        break;
+    }
 }
 
 void init()
 {
     // Init scene Here
-    //Fuad::initScene();
+    switch (currentScene) {
+        case 1:
+            Fuad::initScene();
+        break;
+        case 2:
+
+        break;
+    }
 }
 
 
 void initGLUT(int argc, char **argv) {
-    std::cout << "Starting application..." << std::endl;
-    
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_ALPHA);
     glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -3473,21 +3527,15 @@ void initGLUT(int argc, char **argv) {
 
     std::cout << "Initializing OpenGL..." << std::endl;
     
-    glClearColor(0.52f, 0.8f, 0.92f, 1.0f);
-    
-    
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(0.0, WINDOW_WIDTH, 0.0, WINDOW_HEIGHT);
     
-    
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
-    
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     
     srand(time(0));
 

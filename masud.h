@@ -1076,7 +1076,6 @@ namespace Masud {
             Birdx = -300;
         }
         glutPostRedisplay();
-        glutTimerFunc(value, FupdateBird, 0);
     }
 
     void FBird() {
@@ -1124,7 +1123,6 @@ namespace Masud {
         cloudX += 0.5f;
         if (cloudX > 1300) cloudX = -850;
         glutPostRedisplay();
-        glutTimerFunc(16, FupdateCloud, 0);
     }
 
     void FCloud(int centerX, int centerY, int radius) {
@@ -1175,7 +1173,6 @@ namespace Masud {
         if (truck2X < -620) truck2X = 550;
 
         glutPostRedisplay();
-        glutTimerFunc(16, FupdateVehicles, 0);
     }
 
     void FBus() {
@@ -1433,7 +1430,6 @@ namespace Masud {
         boatX += 1.0f;
         if (boatX > 1250) boatX = -650;
         glutPostRedisplay();
-        glutTimerFunc(value, FupdateBoat, 0);
     }
     float moveUp=0.0f;
 
@@ -1504,7 +1500,6 @@ namespace Masud {
         if (boatY < -650) boatY = 1200;
 
         glutPostRedisplay();
-        glutTimerFunc(16, FupdateBoatNight, 0);
     }
 
     void FBoatNight() {
@@ -2299,10 +2294,8 @@ namespace Masud {
 
     void FDay()
     {
-        glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glLoadIdentity();
-        gluOrtho2D(0, 1000, 0, 600);
+        glClear(GL_COLOR_BUFFER_BIT);  // Just clear the buffer
+        // glLoadIdentity();  // Remove this since we want to preserve transformations
 
         FRiver();
         FRiverBank();
@@ -2353,10 +2346,8 @@ namespace Masud {
 
     void FNight()
     {
-        glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glLoadIdentity();
-        gluOrtho2D(0, 1000, 0, 600);
+        glClear(GL_COLOR_BUFFER_BIT);  // Just clear the buffer
+        // glLoadIdentity();  // Remove this since we want to preserve transformations
 
         FRiverNight();
         FRiverBank();
@@ -2401,15 +2392,12 @@ namespace Masud {
     }
 
     void display() {
-        //glClear(GL_COLOR_BUFFER_BIT);
-
         if (FisDay) {
             FDay();  // Call the day setup
         } else {
             FNight();  // Call the night setup
         }
-
-        //glutSwapBuffers();  // Swap buffers to update the display
+        glutSwapBuffers();  // Swap buffers to update the display
     }
 
 
@@ -2421,11 +2409,13 @@ namespace Masud {
                 break;
             case 'n':
             case 'N':
-                FisDay=false;
+                FisDay = false;
+                glClearColor(0.0f, 0.0f, 0.2f, 1.0f);  // Dark blue for night mode
                 break;
-                case 'd':
-                case 'D':
-                FisDay=true;
+            case 'd':
+            case 'D':
+                FisDay = true;
+                glClearColor(0.52f, 0.8f, 0.92f, 1.0f);  // Sky blue for day mode
                 break;
         }
     }
@@ -2461,12 +2451,12 @@ namespace Masud {
 
     void updateScene(int value) {
         glutPostRedisplay();
-        FupdateBird(20);
+        FupdateBird(0);
         FupdateVehicles(0);
-        FupdateBoat(100);
+        FupdateBoat(0);
         FupdateBoatNight(0);
         FupdateCloud(0);
-        glutTimerFunc(20, updateScene, 0);
+        glutTimerFunc(5, updateScene, 0);
     }
 }
 
