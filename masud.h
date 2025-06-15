@@ -2402,7 +2402,6 @@ namespace Masud {
 
 
     void keyboard(unsigned char key, int x, int y) {
-        std::cout << "Key pressed of Masud's code" << std::endl;
         switch (key) {
             case 27:     // ESC key
                 exit(0);
@@ -2421,7 +2420,6 @@ namespace Masud {
     }
 
     void specialKeyboard(int key, int x, int y) {
-        std::cout << "Special Key pressed of Masud's code" << std::endl;
         switch (key) {
             case GLUT_KEY_UP: // Up arrow key
                 moveUp += 5.0f; // Move the boat up
@@ -2478,16 +2476,22 @@ namespace Masud {
         vehicleSpeed = 1.0f;
         FTrainX=-900.0f;
         sTrainSpeed=2.0f;
+        moveUp = 0.0f;
+        hasInit = true;
         
         // Initialize any Masud scene specific resources here
         glClearColor(0.52f, 0.8f, 0.92f, 1.0f);  // Sky blue for day mode
-        FisDay = true;
-        moveUp = 0.0f;
-        vehicleSpeed = 1.0f;
         
-        hasInit = true;
-
         std::cout << "Masud's scene initialized." << std::endl;
+
+        cout<< "--- Controls ---" <<endl;
+        cout<<"For night press : n"<<endl;
+        cout<<"For day press   : d"<<endl;
+        cout<<endl;
+        cout<<"To move the boat up press   : up button"<<endl;
+        cout<<"To move the boat down press : down button"<<endl;
+        cout<<endl;
+        cout<<"To close the animation press : Esc button"<<endl;
     }
     
     void cleanupScene() {
@@ -2495,33 +2499,3 @@ namespace Masud {
         std::cout << "Masud's scene cleaned up." << std::endl;
     }
 }
-
-
-// // Main function
-// int main(int argc, char** argv) {
-
-
-//     cout<<"For night press : n"<<endl;
-//     cout<<"For day press   : d"<<endl;
-//     cout<<endl;
-//     cout<<"To move the boat up press   : up button"<<endl;
-//     cout<<"To move the boat down press : down button"<<endl;
-//     cout<<endl;
-//     cout<<"To close the animation press : Esc button"<<endl;
-
-//     glutInit(&argc, argv);
-//     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-//     glutInitWindowSize(1000, 600);
-//     glutInitWindowPosition(100, 100);
-//     glutCreateWindow("city-Bridge Train Journey Animation ");
-//     gluOrtho2D(0, 1000, 0, 600);
-
-//     glutDisplayFunc(display);
-//     glutTimerFunc(0, updateScene, 0);
-//     glutKeyboardFunc(keyboard);
-//     glutMouseFunc(mouse);
-
-//     glClearColor(0, 0, 0, 1);  // black background
-//     glutMainLoop();
-//     return 0;
-// }

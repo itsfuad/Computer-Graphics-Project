@@ -3249,6 +3249,13 @@ namespace Fuad {
         hasInit = true;
 
         std::cout << "Fuad's scene initialized" << std::endl;
+
+        std::cout << "--- Controls ---" << std::endl;
+        std::cout << "P: Pause/Play" << std::endl;
+        std::cout << "D: Toggle Debug Bounding Boxes" << std::endl;
+        std::cout << "N: Toggle Day/Night" << std::endl;
+        std::cout << "M: Toggle Background Traffic Sound" << std::endl;
+        std::cout << "ESC: Exit" << std::endl;
     }
 
     void cleanupScene() {

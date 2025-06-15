@@ -198,13 +198,6 @@ int main(int argc, char **argv) {
     glutMouseFunc(handleMouse);
     glutMotionFunc(handleMouseMotion);  // Add mouse motion handler
     
-    std::cout << "--- Controls ---" << std::endl;
-    std::cout << "P: Pause/Play" << std::endl;
-    std::cout << "D: Toggle Debug Bounding Boxes" << std::endl;
-    std::cout << "N: Toggle Day/Night" << std::endl;
-    std::cout << "M: Toggle Background Traffic Sound" << std::endl;
-    std::cout << "ESC: Exit" << std::endl;
-    
     std::cout << "Entering main loop..." << std::endl;
     glutMainLoop();
 
