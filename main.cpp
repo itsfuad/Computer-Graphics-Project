@@ -34,6 +34,20 @@ void initCurrentScene() {
     }
 }
 
+void updateWindowTitle() {
+    switch (currentScene) {
+        case 0:
+            glutSetWindowTitle("OpenGL City Scene Animation");
+            break;
+        case 1:
+            glutSetWindowTitle("Fuad's Scene - Busy traffic Simulation");
+            break;
+        case 2:
+            glutSetWindowTitle("Masud's Scene - City view with river and road");
+            break;
+    }
+}
+
 void switchScene(int newScene) {
     if (newScene < 0 || newScene > numOfScene) return;
     
@@ -45,6 +59,9 @@ void switchScene(int newScene) {
     
     // Initialize new scene
     initCurrentScene();
+    
+    // Update window title
+    updateWindowTitle();
 }
 
 void specialKeyboard(int key, int x, int y) {
@@ -143,7 +160,10 @@ void initGLUT(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_ALPHA);
     glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
-    glutCreateWindow("Enhanced Traffic Simulation");
+    glutCreateWindow("Traffic Simulation");
+    
+    // Set initial window title
+    updateWindowTitle();
 
     std::cout << "Initializing OpenGL..." << std::endl;
     

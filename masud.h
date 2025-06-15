@@ -1,10 +1,10 @@
 #pragma once
 #include <GL/glut.h>
+#include<GL/gl.h>
 #include <iostream>
 #include<windows.h>
-#include<GL/gl.h>
-#include<GL/glut.h>
 #include<math.h>
+
 using namespace std;
 
 namespace Masud {

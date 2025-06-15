@@ -1,6 +1,6 @@
 #pragma once
-
 #include <GL/glut.h>
+#include<GL/gl.h>
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -66,8 +66,10 @@ namespace Fuad {
     bool MUSIC_ON = true;
 
     bool showWarningMessage = false;
+    bool warningMessageActive = false;  // Add flag to track if warning timer is active
     int lastCarSpawnTime = 0;
     int lastHumanSpawnTime = 0;
+    int warningMessageTimer = 0;  // Add timer variable
 
 
     const float CAR_PRIORITY_THRESHOLD = 450.0f;  
@@ -999,7 +1001,8 @@ namespace Fuad {
         }
 
         bool isOutOfScreen() const {
-            return x + width > WINDOW_WIDTH + 100;
+            // Check if the entire vehicle is off screen (x position is past window width)
+            return x > WINDOW_WIDTH;
         }
 
         void update() override {
@@ -1017,7 +1020,7 @@ namespace Fuad {
                     stoppedByLight = true;
                     if (DEBUG_ON) {
                         debugCalls.push_back([=]() {
-                            std::string debugText = "Stopped by Light at (" + std::to_string(x) + ", " + std::to_string(y) + ")";
+                            std::string debugText = "Stopped by Light";
                             drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
                         });
                     }
@@ -1059,7 +1062,7 @@ namespace Fuad {
                             target_speed = 0;
                             if (DEBUG_ON) {
                                 debugCalls.push_back([=]() {
-                                    std::string debugText = "Blocked by Human at (" + std::to_string(ped->x) + ", " + std::to_string(ped->y) + ")";
+                                    std::string debugText = "Blocked by Human";
                                     drawText(x + width / 2, y - 20, debugText.c_str(), 0.5f);
                                 });
                             }
@@ -2289,8 +2292,47 @@ namespace Fuad {
     };
 
     class StreetLamp : public Drawable {
+    private:
+        bool isLid = false;
+        int timePassed = 0;
+        int randomDelay = 0;  // Random delay before state change
+        bool isTurningOff = false;  // Track if we're in the process of turning off
+
     public:
-        StreetLamp(float x, float y) : Drawable(x, y, 36, 120) {}
+        StreetLamp(float x, float y) : Drawable(x, y, 36, 120) {
+            // Set initial random delay (10-100 frames)
+            randomDelay = 10 + (rand() % 91);
+        }
+
+        void update() override {
+            if (isNight) {
+                if (!isLid && !isTurningOff) {
+                    // Turning on
+                    timePassed++;
+                    if (timePassed >= randomDelay) {
+                        isLid = true;
+                        timePassed = 0;
+                    }
+                }
+            } else {
+                if (isLid && !isTurningOff) {
+                    // Start turning off
+                    isTurningOff = true;
+                    timePassed = 0;
+                    randomDelay = 10 + (rand() % 91);  // New random delay for turning off
+                } else if (isTurningOff) {
+                    // In process of turning off
+                    timePassed++;
+                    if (timePassed >= randomDelay) {
+                        isLid = false;
+                        isTurningOff = false;
+                        timePassed = 0;
+                        randomDelay = 10 + (rand() % 91);  // New random delay for next turn on
+                    }
+                }
+            }
+        }
+
         void draw() override {
             glPushMatrix();
             glTranslatef(x, y, 0);
@@ -2359,45 +2401,48 @@ namespace Fuad {
             }
 
             
-            if (isNight) {
-                
-                
-                glColor4f(1.0f, 0.95f, 0.8f, 0.15f);
-                drawCircle(40, 100, 25);
-
-                
-                glColor4f(1.0f, 0.95f, 0.8f, 0.3f);
-                drawCircle(40, 100, 15);
-
-                
-                glColor4f(1.0f, 0.95f, 0.8f, 0.5f);
-                drawCircle(40, 100, 8);
-
-                
-                glColor3f(1.0f, 0.95f, 0.8f);
-                drawCircle(40, 100, 5);
-
-                
-                glColor4f(1.0f, 0.95f, 0.8f, 0.2f);
-                glBegin(GL_TRIANGLES);
-                glVertex2f(40, 90);  
-                glVertex2f(20, 0);  
-                glVertex2f(60, 0);  
-                glEnd();
-
-                
-                glColor4f(1.0f, 0.95f, 0.8f, 0.1f);
-                drawCircle(40, 0, 25); 
+            if (isNight || isTurningOff) {
+                if (isLid) {
+                    drawLights();
+                } else {
+                    setObjectColor(0.6f, 0.6f, 0.5f);
+                    drawCircle(40, 100, 5);
+                }
             } else {
-                
                 setObjectColor(0.6f, 0.6f, 0.5f);
                 drawCircle(40, 100, 5);
             }
 
             glPopMatrix();
         }
-        void update() override {
+
+        void drawLights() {
+            glColor4f(1.0f, 0.95f, 0.8f, 0.15f);
+            drawCircle(40, 100, 25);
+
             
+            glColor4f(1.0f, 0.95f, 0.8f, 0.3f);
+            drawCircle(40, 100, 15);
+
+            
+            glColor4f(1.0f, 0.95f, 0.8f, 0.5f);
+            drawCircle(40, 100, 8);
+
+            
+            glColor3f(1.0f, 0.95f, 0.8f);
+            drawCircle(40, 100, 5);
+
+            
+            glColor4f(1.0f, 0.95f, 0.8f, 0.2f);
+            glBegin(GL_TRIANGLES);
+            glVertex2f(40, 90);  
+            glVertex2f(20, 0);  
+            glVertex2f(60, 0);  
+            glEnd();
+
+            
+            glColor4f(1.0f, 0.95f, 0.8f, 0.1f);
+            drawCircle(40, 0, 25); 
         }
     };
 
@@ -3091,8 +3136,8 @@ namespace Fuad {
 
         if (showWarningMessage)
         {
-            glColor3f(1.0f, 0.0f, 0.0f);
-            drawText(TRAFFIC_LIGHT_X - 100, SIDEWALK_TOP_Y_START + 180, "People are still passing the road", 0.7f);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            drawText(TRAFFIC_LIGHT_X - 100, SIDEWALK_TOP_Y_START + 100, "People are still passing the road", 0.7f);
         }
         
         drawDebugOverlay();
@@ -3100,11 +3145,29 @@ namespace Fuad {
         glutSwapBuffers();
     }
 
+    void hideWarningMessage(int value) {
+        showWarningMessage = false;
+        warningMessageActive = false;
+        glutPostRedisplay();
+    }
+
     void keyboard(unsigned char key, int x, int y) {
         switch (key) {
             case 't':
             case 'T':
                 if (trafficSignal->lightState == TrafficSignal::TrafficLightState::RED) {
+                    // show warning message if people are still crossing
+                    if (HumansCrossing() > 0) {
+                        showWarningMessage = true;
+                        // Cancel any existing timer by setting the flag
+                        warningMessageActive = false;
+                        // Set new timer to hide message after 3 seconds
+                        warningMessageActive = true;
+                        glutTimerFunc(3000, hideWarningMessage, 0);
+                    } else {
+                        showWarningMessage = false;
+                        warningMessageActive = false;
+                    }
                     trafficSignal->yellowLightOn = true;
                     showTransitionDelay([&]() { trafficSignal->showGreenLight(); }, 1000);
                 }
@@ -3207,6 +3270,7 @@ namespace Fuad {
         DEBUG_ON = false;
         MUSIC_ON = true;
         showWarningMessage = false;
+        warningMessageActive = false;
         lastCarSpawnTime = 0;
         lastHumanSpawnTime = 0;
         currentTimeOfDay = 0.3f;

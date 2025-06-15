@@ -1,11 +1,11 @@
 #pragma once
 
 #include <GL/glut.h>
+#include<GL/gl.h>
 #include <string>
 #include <vector>
 #include <cmath>
 
-// Forward declare the global switchScene function
 void switchScene(int newScene);
 
 namespace Welcome {
@@ -112,21 +112,20 @@ namespace Welcome {
         
         // Draw title
         glColor4f(TITLE_COLOR.r, TITLE_COLOR.g, TITLE_COLOR.b, titleAlpha);
-        drawCenteredText(titleY, "OpenGL Traffic Simulation", TITLE_SCALE);
+        drawCenteredText(titleY, "OpenGL City View Project", TITLE_SCALE);
         
         // Draw start button
         float buttonX = (WINDOW_WIDTH - BUTTON_WIDTH) / 2.0f;
         float buttonY = WINDOW_HEIGHT * 0.4f;
-        drawButton(buttonX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT, "Start Simulation", isHoveringStart);
+        drawButton(buttonX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT, "Start", isHoveringStart);
         
         // Draw instructions
         std::vector<std::string> instructions = {
-            "Controls:",
-            "P: Pause/Play",
-            "D: Toggle Debug Bounding Boxes",
-            "N: Toggle Day/Night",
-            "M: Toggle Background Traffic Sound",
-            "ESC: Exit"
+            "Contributors: ",
+            " - Md. Fuad Hasan",
+            " - Md. Masud Alam",
+            " - Md. Mahtab Habib",
+            " - Abdullah Shoab",
         };
         
         float instructionY = WINDOW_HEIGHT * 0.25f;
@@ -147,7 +146,6 @@ namespace Welcome {
             // Check if click is within button bounds
             if (x >= buttonX && x <= buttonX + BUTTON_WIDTH &&
                 y >= buttonY - BUTTON_HEIGHT && y <= buttonY) {
-                // Switch to first scene using the global function
                 ::switchScene(1);
             }
         }
