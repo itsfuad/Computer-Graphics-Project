@@ -41,9 +41,8 @@ namespace Fuad {
     const float SIDEWALK_BOTTOM_Y_START = 120.0f;
     const float SIDEWALK_BOTTOM_Y_END = 150.0f;
 
-    const float TRAFFIC_LIGHT_X = 600.0f;
-    const float CAR_STOP_LINE_X = TRAFFIC_LIGHT_X - 20.0f;
-    const float HUMAN_CROSSING_X_START = TRAFFIC_LIGHT_X + 35.0f;
+    const float HUMAN_CROSSING_X_START = 600.0f;
+    const float CAR_STOP_LINE_X = HUMAN_CROSSING_X_START - 20.0f;
     const float HUMAN_CROSSING_WIDTH = 70.0f;
     const float HUMAN_CROSSING_CENTER_X = HUMAN_CROSSING_X_START + HUMAN_CROSSING_WIDTH / 2.0f;
 
@@ -136,9 +135,7 @@ namespace Fuad {
 
     std::vector<std::shared_ptr<Vehicle>> vehicles; 
     std::vector<std::shared_ptr<Human>> activeHumans;
-    std::vector<std::shared_ptr<Tree>> trees; 
     std::vector<std::shared_ptr<Star>> stars;
-    std::vector<std::shared_ptr<StreetLamp>> streetLamps;
 
     void drawDebugOverlay() {
         for (const auto& debugCall : debugCalls) {
@@ -327,19 +324,23 @@ namespace Fuad {
     class TrafficSignal : public Drawable {
     public:
         enum class TrafficLightState { RED, GREEN };
-        TrafficLightState lightState;
-        bool yellowLightOn;
+        static TrafficLightState lightState;
+        static bool yellowLightOn;
         const int YELLOW_BLINK_INTERVAL = 15;
         TrafficSignal(float x, float y) : Drawable(x, y, 20, 60) {
-            lightState = TrafficLightState::GREEN;
-            yellowLightOn = false;
+            static bool initialized = false;
+            if (!initialized) {
+                lightState = TrafficLightState::GREEN;
+                yellowLightOn = false;
+                initialized = true;
+            }
         }
 
-        void showGreenLight() {
+        static void showGreenLight() {
             lightState = TrafficLightState::GREEN;
         }
 
-        void showRedLight() {
+        static void showRedLight() {
             lightState = TrafficLightState::RED;
         }
 
@@ -351,22 +352,20 @@ namespace Fuad {
             bool isWaiting = numOfHumanWaiting > 0;
             bool isCrossing = numOfHumansCurrentlyCrossing > 0;
 
-            if (yellowLightOn) return; 
+            if (yellowLightOn) return;
 
-            
             bool prioritizeHumans = numOfHumanWaiting > carsNearCrossing;
-            if (numOfHumanWaiting == carsNearCrossing) prioritizeHumans = false; 
+            if (numOfHumanWaiting == carsNearCrossing) prioritizeHumans = false;
 
             if (lightState == TrafficLightState::GREEN && isWaiting && prioritizeHumans) {
                 yellowLightOn = true;
-                showTransitionDelay([&]() { showRedLight(); }, 1000); 
-            } 
+                showTransitionDelay([&]() { showRedLight(); }, 1000);
+            }
             else if (lightState == TrafficLightState::RED && !isCrossing && !prioritizeHumans) {
                 yellowLightOn = true;
-                showTransitionDelay([&]() { showGreenLight(); }, 1000); 
+                showTransitionDelay([&]() { showGreenLight(); }, 1000);
             }
         }
-
 
         void draw() override {
             const float height = 60.0f;
@@ -377,10 +376,8 @@ namespace Fuad {
             int translateX = -(width / 4);
             const float gap = 18;
 
-            
             for (int i = 0; i < 3; i++) {
                 float centerY = y + height - (i + 0.5f) * spacing;
-                
                 if(i == 0 && lightState == TrafficLightState::RED && !yellowLightOn)
                     glColor3f(1.0f, 0.0f, 0.0f);
                 else if(i == 1 && yellowLightOn)
@@ -388,14 +385,10 @@ namespace Fuad {
                 else if(i == 2 && lightState == TrafficLightState::GREEN && !yellowLightOn)
                     glColor3f(0.0f, 1.0f, 0.0f);
                 else
-                    glColor3f(0.3f, 0.3f, 0.3f); 
-
-                
+                    glColor3f(0.3f, 0.3f, 0.3f);
                 drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius);
                 drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius);
-
                 bool drawGlow = true;
-
                 if(i == 0 && lightState == TrafficLightState::RED && !yellowLightOn)
                     glColor4f(1.0f, 0.0f, 0.0f, 0.3f);
                 else if(i == 1 && yellowLightOn)
@@ -404,25 +397,17 @@ namespace Fuad {
                     glColor4f(0.0f, 1.0f, 0.0f, 0.3f);
                 else
                     drawGlow = false;
-            
                 if (drawGlow) {
                     drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
                     drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
                 }
-
-                
                 setObjectColor(0.0f, 0.0f, 0.0f);
                 drawTriangle(x + translateX, centerY + translateY, x + translateX - 10, centerY + translateY, x + translateX, centerY - 10 + translateY);
                 drawTriangle(x + translateX + width, centerY + translateY, x + translateX + width + 10, centerY + translateY, x + translateX + width, centerY - 10 + translateY);
             }
-
-            
             setObjectColor(0.0f, 0.0f, 0.0f);
             drawRect(x + translateX, y + translateY - 8, width, height);
-            
-            
-            drawRect(x, y, 10, 100); 
-
+            drawRect(x, y, 10, 100);
             drawHumanSign();
         }
 
@@ -485,8 +470,8 @@ namespace Fuad {
         }
     };
 
-    std::shared_ptr<TrafficSignal> trafficSignal = std::make_shared<TrafficSignal>(TRAFFIC_LIGHT_X, SIDEWALK_TOP_Y_START);
-    std::shared_ptr<BlurrySkyline> skyline = std::make_shared<BlurrySkyline>(0, SIDEWALK_TOP_Y_END, WINDOW_WIDTH, 100);
+    TrafficSignal::TrafficLightState TrafficSignal::lightState = TrafficSignal::TrafficLightState::GREEN;
+    bool TrafficSignal::yellowLightOn = false;
 
     class Human : public Drawable {
     public:
@@ -629,7 +614,7 @@ namespace Fuad {
 
                 case HumanState::WAITING_AT_CROSSING_EDGE:
                     stopWalking();
-                    if (trafficSignal->lightState == TrafficSignal::TrafficLightState::RED && !trafficSignal->yellowLightOn) {
+                    if (TrafficSignal::lightState == TrafficSignal::TrafficLightState::RED && !TrafficSignal::yellowLightOn) {
                         state = HumanState::CROSSING_ROAD;
                     }
                     break;
@@ -1017,7 +1002,7 @@ namespace Fuad {
             target_speed = USER_CAR_SPEED_BASE * speedFactor;
 
             bool stoppedByLight = false;
-            if (trafficSignal->lightState == TrafficSignal::TrafficLightState::RED || trafficSignal->yellowLightOn) {
+            if (TrafficSignal::lightState == TrafficSignal::TrafficLightState::RED || TrafficSignal::yellowLightOn) {
                 if (x + width < CAR_STOP_LINE_X + 5.0f && x + width > CAR_STOP_LINE_X - (DISTANCE_TO_STOP_FROM_SIGNAL + width)) {
                     target_speed = 0;
                     stoppedByLight = true;
@@ -2023,18 +2008,6 @@ namespace Fuad {
         }
     };
 
-
-    void initBuildings() {
-        backgroundObjects.push_back(std::static_pointer_cast<Drawable>(skyline));
-        backgroundObjects.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
-        backgroundObjects.push_back(std::make_shared<Shop>(220.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
-        backgroundObjects.push_back(std::make_shared<Shop>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
-        backgroundObjects.push_back(std::make_shared<GlassSkyscraper>(570.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
-        backgroundObjects.push_back(std::make_shared<ModernOfficeBuilding>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
-        backgroundObjects.push_back(std::make_shared<ClassicApartment>(440.0f, SIDEWALK_TOP_Y_END, 110.0f, 160.0f));
-        backgroundObjects.push_back(std::make_shared<BrickBuilding>(800.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
-    }
-
     void initStreetLamps(int numLamps = 3) {
         float spacing;
         float startX;
@@ -2052,18 +2025,14 @@ namespace Fuad {
         
         for (int i = 0; i < numLamps; ++i) {
             float lampX = startX + i * spacing;
-            std::shared_ptr<StreetLamp> lamp = std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START);
-            streetLamps.push_back(lamp);
-            drawableObjects.push_back(std::static_pointer_cast<Drawable>(lamp));
+            drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<StreetLamp>(lampX, SIDEWALK_TOP_Y_START)));
         }
 
         
         const float phaseShift = 50.0f; 
         for (int i = 0; i < numLamps; ++i) {
             float lampX = startX + i * spacing + phaseShift;
-            std::shared_ptr<StreetLamp> lamp = std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END);
-            streetLamps.push_back(lamp);
-            drawableObjects.push_back(std::static_pointer_cast<Drawable>(lamp));
+            drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<StreetLamp>(lampX, SIDEWALK_BOTTOM_Y_END)));
         }
     }
 
@@ -2216,16 +2185,6 @@ namespace Fuad {
             
         }
     };
-
-    void initTrees() {
-        trees.clear();
-        
-        trees.push_back(std::make_shared<BasicTree>(180, SIDEWALK_TOP_Y_START + 28));  
-        trees.push_back(std::make_shared<PineTree>(500, SIDEWALK_TOP_Y_START + 28));   
-        trees.push_back(std::make_shared<PineTree>(700, SIDEWALK_TOP_Y_START + 28));   
-        trees.push_back(std::make_shared<BasicTree>(850, SIDEWALK_BOTTOM_Y_START - 2)); 
-        trees.push_back(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START - 2));  
-    }
 
     class BlurrySkyline : public Drawable {
     private:
@@ -2684,6 +2643,17 @@ namespace Fuad {
         }
     }
 
+    void initBuildings() {
+        backgroundObjects.push_back(std::make_shared<BlurrySkyline>(0, SIDEWALK_TOP_Y_END, WINDOW_WIDTH, 100));
+        backgroundObjects.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
+        backgroundObjects.push_back(std::make_shared<Shop>(220.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
+        backgroundObjects.push_back(std::make_shared<Shop>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
+        backgroundObjects.push_back(std::make_shared<GlassSkyscraper>(570.0f, SIDEWALK_TOP_Y_END, 80.0f, 280.0f));
+        backgroundObjects.push_back(std::make_shared<ModernOfficeBuilding>(680.0f, SIDEWALK_TOP_Y_END, 100.0f, 200.0f));
+        backgroundObjects.push_back(std::make_shared<ClassicApartment>(440.0f, SIDEWALK_TOP_Y_END, 110.0f, 160.0f));
+        backgroundObjects.push_back(std::make_shared<BrickBuilding>(800.0f, SIDEWALK_TOP_Y_END, 150.0f, 160.0f));
+    }
+
     void drawGround() {
         setObjectColor(0.35f, 0.7f, 0.25f); 
         glBegin(GL_QUADS);
@@ -2749,7 +2719,7 @@ namespace Fuad {
     int countCarsNearCrossing() {
         int count = 0;
         for (const auto& v : vehicles) {
-            if (v->state == Vehicle::VehicleState::ACTIVE && v->x < TRAFFIC_LIGHT_X && v->x > TRAFFIC_LIGHT_X - CAR_PRIORITY_THRESHOLD) {
+            if (v->state == Vehicle::VehicleState::ACTIVE && v->x < HUMAN_CROSSING_X_START && v->x > HUMAN_CROSSING_X_START - CAR_PRIORITY_THRESHOLD) {
                 count++;
             }
         }
@@ -2952,7 +2922,7 @@ namespace Fuad {
     static std::function<void()> g_pendingCallback = nullptr;
 
     void timerCallback(int value) {
-        trafficSignal->yellowLightOn = false;  
+        TrafficSignal::yellowLightOn = false;  
         if (g_pendingCallback) {
             g_pendingCallback();  
             g_pendingCallback = nullptr;  
@@ -3078,8 +3048,17 @@ namespace Fuad {
         }
     }
 
+    void initTrees() {
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<BasicTree>(180, SIDEWALK_TOP_Y_START + 28)));  
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<PineTree>(560, SIDEWALK_TOP_Y_START + 28)));   
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<PineTree>(700, SIDEWALK_TOP_Y_START + 28)));   
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<BasicTree>(850, SIDEWALK_BOTTOM_Y_START - 2))); 
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<PineTree>(300, SIDEWALK_BOTTOM_Y_START - 2)));  
+    }
+
     void initRoadDecorators() {
-        drawableObjects.push_back(std::static_pointer_cast<Drawable>(trafficSignal));
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<TrafficSignal>(HUMAN_CROSSING_CENTER_X - 60, SIDEWALK_TOP_Y_START)));
+        drawableObjects.push_back(std::static_pointer_cast<Drawable>(std::make_shared<TrafficSignal>(HUMAN_CROSSING_CENTER_X + 60, SIDEWALK_TOP_Y_START - 100)));
         drawableObjects.push_back(std::make_shared<PostBox>(130, SIDEWALK_TOP_Y_END - 8));
         drawableObjects.push_back(std::make_shared<PostBox>(800, SIDEWALK_BOTTOM_Y_START + 8));
         drawableObjects.push_back(std::make_shared<Bench>(250, SIDEWALK_TOP_Y_END - 8));
@@ -3142,7 +3121,7 @@ namespace Fuad {
         if (showWarningMessage)
         {
             glColor3f(1.0f, 1.0f, 1.0f);
-            drawText(TRAFFIC_LIGHT_X - 100, SIDEWALK_TOP_Y_START + 100, "People are still passing the road", 0.7f);
+            drawText(HUMAN_CROSSING_X_START - 100, SIDEWALK_TOP_Y_START + 100, "People are still passing the road", 0.7f);
         }
         
         drawDebugOverlay();
@@ -3160,7 +3139,7 @@ namespace Fuad {
         switch (key) {
             case 't':
             case 'T':
-                if (trafficSignal->lightState == TrafficSignal::TrafficLightState::RED) {
+                if (TrafficSignal::lightState == TrafficSignal::TrafficLightState::RED) {
                     // show warning message if people are still crossing
                     if (HumansCrossing() > 0) {
                         showWarningMessage = true;
@@ -3173,12 +3152,12 @@ namespace Fuad {
                         showWarningMessage = false;
                         warningMessageActive = false;
                     }
-                    trafficSignal->yellowLightOn = true;
-                    showTransitionDelay([&]() { trafficSignal->showGreenLight(); }, 1000);
+                    TrafficSignal::yellowLightOn = true;
+                    showTransitionDelay([&]() { TrafficSignal::showGreenLight(); }, 1000);
                 }
-                else if (trafficSignal->lightState == TrafficSignal::TrafficLightState::GREEN) {
-                    trafficSignal->yellowLightOn = true;
-                    showTransitionDelay([&]() { trafficSignal->showRedLight(); }, 1000);
+                else if (TrafficSignal::lightState == TrafficSignal::TrafficLightState::GREEN) {
+                    TrafficSignal::yellowLightOn = true;
+                    showTransitionDelay([&]() { TrafficSignal::showRedLight(); }, 1000);
                 }
                 break;
             case 'p':
@@ -3247,6 +3226,8 @@ namespace Fuad {
 
         initRoadDecorators();
 
+        initTrees();
+
         initGroundDecorator();  
 
         initAudio();
@@ -3272,9 +3253,7 @@ namespace Fuad {
         activeHumans.clear();
         drawableObjects.clear();
         backgroundObjects.clear();
-        trees.clear();
         stars.clear();
-        streetLamps.clear();
         
         // Reset state
         hasInit = false;
