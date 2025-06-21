@@ -184,7 +184,7 @@ void initGLUT(int argc, char **argv) {
 
 
 int main(int argc, char **argv) {
-
+    
     initGLUT(argc, argv);
 
     std::cout << "Initializing scene..." << std::endl;

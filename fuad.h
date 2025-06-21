@@ -2993,16 +2993,16 @@ namespace Fuad {
             std::cerr << "Failed to initialize audio system" << std::endl;
         } else {
             
-            audioManager.loadSound("traffic", "D:/dev/OpenGL/project/audio/traffic.wav"); 
-            audioManager.loadSound("people", "D:/dev/OpenGL/project/audio/people.wav");
+            audioManager.loadSound("traffic", "/audio/traffic.wav"); 
+            audioManager.loadSound("people", "/audio/people.wav");
             
-            audioManager.loadSound("car", "D:/dev/OpenGL/project/audio/car.wav");
+            audioManager.loadSound("car", "/audio/car.wav");
             
-            audioManager.loadSound("bus", "D:/dev/OpenGL/project/audio/bus.wav");
+            audioManager.loadSound("bus", "/audio/bus.wav");
             
-            audioManager.loadSound("truck", "D:/dev/OpenGL/project/audio/truck.wav");
+            audioManager.loadSound("truck", "/audio/truck.wav");
 
-            audioManager.loadSound("beep", "D:/dev/OpenGL/project/audio/beep.wav");
+            audioManager.loadSound("beep", "/audio/beep.wav");
             
             audioManager.playSound("traffic", true);
             audioManager.playSound("people", true);
