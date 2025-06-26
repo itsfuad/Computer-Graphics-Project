@@ -2447,7 +2447,7 @@ namespace Masud {
         }
     }
 
-    void updateScene(int value) {
+    void updateScene() {
         
         glutPostRedisplay();
 

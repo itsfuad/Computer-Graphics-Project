@@ -71,7 +71,7 @@ namespace Fuad {
     int warningMessageTimer = 0;  // Add timer variable
 
 
-    const float CAR_PRIORITY_THRESHOLD = 450.0f;  
+    const float CAR_PRIORITY_THRESHOLD = 350.0f;  
 
 
     const float VEHICLE_WHEEL_OFFSET = 5.0f;  
@@ -201,6 +201,7 @@ namespace Fuad {
 
 
     void drawText(float x, float y, const char* text, float scale = 0.7f) {
+        glColor3f(1.0f, 1.0f, 1.0f); // Set text color to white
         glPushMatrix();
         glTranslatef(x, y, 0.0f);
         glScalef(scale, scale, 1.0f);
@@ -326,7 +327,7 @@ namespace Fuad {
         enum class TrafficLightState { RED, GREEN };
         static TrafficLightState lightState;
         static bool yellowLightOn;
-        const int YELLOW_BLINK_INTERVAL = 15;
+        const int YELLOW_BLINK_INTERVAL = 20;
         TrafficSignal(float x, float y) : Drawable(x, y, 20, 60) {
             static bool initialized = false;
             if (!initialized) {
@@ -345,6 +346,9 @@ namespace Fuad {
         }
 
         void update() override {
+
+            if (yellowLightOn) return;
+
             int numOfHumanWaiting = HumansWaitingToCross();
             int numOfHumansCurrentlyCrossing = HumansCrossing();
             int carsNearCrossing = countCarsNearCrossing();
@@ -352,18 +356,17 @@ namespace Fuad {
             bool isWaiting = numOfHumanWaiting > 0;
             bool isCrossing = numOfHumansCurrentlyCrossing > 0;
 
-            if (yellowLightOn) return;
 
             bool prioritizeHumans = numOfHumanWaiting > carsNearCrossing;
             if (numOfHumanWaiting == carsNearCrossing) prioritizeHumans = false;
 
             if (lightState == TrafficLightState::GREEN && isWaiting && prioritizeHumans) {
                 yellowLightOn = true;
-                showTransitionDelay([&]() { showRedLight(); }, 1000);
+                showTransitionDelay([&]() { showRedLight(); }, 2000);
             }
             else if (lightState == TrafficLightState::RED && !isCrossing && !prioritizeHumans) {
                 yellowLightOn = true;
-                showTransitionDelay([&]() { showGreenLight(); }, 1000);
+                showTransitionDelay([&]() { showGreenLight(); }, 2000);
             }
         }
 
@@ -3065,7 +3068,7 @@ namespace Fuad {
         drawableObjects.push_back(std::make_shared<Bench>(700, SIDEWALK_BOTTOM_Y_START + 8));
     }
 
-    void updateScene(int) {
+    void updateScene() {
         updateTime();
         updateSkyColor();
         updateSky();

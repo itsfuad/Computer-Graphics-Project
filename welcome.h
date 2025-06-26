@@ -85,7 +85,7 @@ namespace Welcome {
     }
     
     // Update animation and state
-    void updateScene(int value) {
+    void updateScene() {
         // Animate title entrance
         if (titleY > WINDOW_HEIGHT * 0.6f) {
             titleY -= 2.0f;

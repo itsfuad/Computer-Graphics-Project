@@ -1,9 +1,10 @@
 #include "masud.h"
+#include "mahtab.h"
 #include "fuad.h"
 #include "welcome.h"
 
 int currentScene = 0;  // Start with welcome screen
-int numOfScene = 2;    // Total number of scenes (excluding welcome)
+int numOfScene = 3;    // Total number of scenes (excluding welcome)
 
 // Global scene management
 void cleanupCurrentScene() {
@@ -17,6 +18,8 @@ void cleanupCurrentScene() {
         case 2:
             Masud::cleanupScene();
             break;
+        case 3:
+            Mahtab::cleanupScene();
     }
 }
 
@@ -30,6 +33,9 @@ void initCurrentScene() {
             break;
         case 2:
             Masud::initScene();
+            break;
+        case 3:
+            Mahtab::initScene();
             break;
     }
 }
@@ -101,6 +107,9 @@ void handleKeyboard(unsigned char key, int x, int y) {
         case 2:
             Masud::keyboard(key, x, y);
             break;
+        case 3:
+            Mahtab::keyboard(key, x, y);
+            break;
     }
 }
 
@@ -116,6 +125,9 @@ void handleMouse(int button, int state, int x, int y) {
         case 2:
             Masud::mouse(button, state, x, y);
             break;
+        case 3:
+            Mahtab::mouse(button, state, x, y);
+            break;
     }
 }
 
@@ -125,17 +137,20 @@ void handleMouseMotion(int x, int y) {
     }
 }
 
-void updateFunc(int value) {
+void updateFunc(int) {
     // Update the scene
     switch (currentScene) {
         case 0:
-            Welcome::updateScene(value);
+            Welcome::updateScene();
             break;
         case 1:
-            Fuad::updateScene(value);
+            Fuad::updateScene();
             break;
         case 2:
-            Masud::updateScene(value);
+            Masud::updateScene();
+            break;
+        case 3:
+            Mahtab::updateScene();
             break;
     }
     glutTimerFunc(1000 / 60, updateFunc, 0);
@@ -151,6 +166,9 @@ void displayFunc() {
             break;
         case 2:
             Masud::display();
+            break;
+        case 3:
+            Mahtab::display();
             break;
     }
 }
@@ -196,7 +214,8 @@ int main(int argc, char **argv) {
     glutKeyboardFunc(handleKeyboard);
     glutSpecialFunc(specialKeyboard);
     glutMouseFunc(handleMouse);
-    glutMotionFunc(handleMouseMotion);  // Add mouse motion handler
+
+    glutMotionFunc(handleMouseMotion);  // for welcome screen
     
     std::cout << "Entering main loop..." << std::endl;
     glutMainLoop();
