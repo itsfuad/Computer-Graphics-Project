@@ -2,7 +2,9 @@ cls
 @echo off
 
 echo Compiling...
-g++.exe -Wall -g ^
+g++.exe ^
+  -std=c++17 ^
+  -Wall -g ^
   -I"C:\Program Files\CodeBlocks\MinGW\x86_64-w64-mingw32\include" ^
   -c main.cpp -o obj\Debug\main.o
 
@@ -12,7 +14,9 @@ if errorlevel 1 (
 )
 
 echo Linking...
-g++.exe -L"C:\Program Files\CodeBlocks\MinGW\x86_64-w64-mingw32\lib" ^
+g++.exe ^
+  -std=c++17 ^
+  -L"C:\Program Files\CodeBlocks\MinGW\x86_64-w64-mingw32\lib" ^
   -o bin\Debug\main.exe obj\Debug\main.o ^
   -lfreeglut -lopengl32 -lglu32 -lwinmm -lgdi32 -lopenal32
 
