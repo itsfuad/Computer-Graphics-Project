@@ -10,21 +10,8 @@
 #include <cstring>
 #include <algorithm>
 
-bool isAbsolutePath(const std::string& path) {
-#ifdef _WIN32
-    // e.g., C:\... or C:/...
-    return path.size() > 2 && std::isalpha(path[0]) && path[1] == ':' &&
-           (path[2] == '/' || path[2] == '\\');
-#else
-    // Treat only root paths like "/home" as absolute
-    return !path.empty() && path[0] == '/' && path.substr(0, 2) != "./" && path.substr(0, 3) != "../";
-#endif
-}
-
-
 
 std::string resolvePath(const std::string& filePath) {
-    if (isAbsolutePath(filePath)) return filePath;
 
     std::string basePath = __FILE__;
     size_t lastSlash = basePath.find_last_of("/\\");
@@ -190,7 +177,7 @@ public:
 
     void setVolume(const std::string& name, float volume) {
         if (!isInitialized || sources.find(name) == sources.end()) return;
-        alSourcef(sources[name], AL_GAIN, std::clamp(volume, 0.0f, 1.0f));
+        alSourcef(sources[name], AL_GAIN, std::max(0.0f, std::min(1.0f, volume)));
     }
 
     bool isPlaying(const std::string& name) {
