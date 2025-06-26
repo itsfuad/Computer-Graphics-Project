@@ -2,6 +2,7 @@
 
 #include <AL/al.h>
 #include <AL/alc.h>
+#include <filesystem>
 
 class AudioManager {
 private:
@@ -48,7 +49,7 @@ public:
         return true;
     }
 
-    bool loadSound(const std::string& name, const std::string& filePath) {
+    bool loadSound(const std::string& name, std::string filePath) {
         if (!isInitialized) return false;
 
         ALuint buffer;
@@ -58,6 +59,29 @@ public:
             std::cerr << "OpenAL error generating buffer: " << alGetString(error) << std::endl;
             return false;
         }
+
+        //detect if relative or absolute path
+        if (filePath.empty()) {
+            std::cerr << "File path is empty for sound: " << name << std::endl;
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        // if the file path is relative, convert it to absolute
+        if (!std::filesystem::path(filePath).is_absolute()) {
+            //get the current working directory of the target file
+            std::string filepath = __FILE__;
+            std::filesystem::path currentPath(filepath);
+            filePath = currentPath.parent_path().string() + filePath;
+        }
+
+        if (!std::filesystem::exists(filePath)) {
+            std::cerr << "Sound file does not exist: " << filePath << std::endl;
+            alDeleteBuffers(1, &buffer);
+            return false;
+        }
+
+        std::cerr << "Loading sound: " << name << " from " << filePath << std::endl;
 
         FILE* file = fopen(filePath.c_str(), "rb");
         if (!file) {
