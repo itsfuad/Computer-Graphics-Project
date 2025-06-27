@@ -10,22 +10,22 @@ This is a Computer Graphics course project implemented using OpenGL and GLUT. Th
 - OpenAL (Open Audio Library)
 
 ## Installation
-1. Install MinGW or Visual Studio with C++ support
-2. Install GLUT:
-   - Download freeglut from [freeglut website](https://www.transmissionzero.co.uk/software/freeglut-devel/)
-   - Extract and copy the files to your MinGW/Visual Studio directories:
-     - `freeglut.dll` → `C:\Windows\System32`
-     - `freeglut.lib` → `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\lib`
-     - Header files → `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\include\GL`
+1. Install MinGW
 
-3. Install OpenAL:
-   - Download OpenAL SDK from [OpenAL website](https://openal.org/downloads/)
-   - Follow the installation instructions for your system
+### Libraries Setup (Manual Steps)
+1. Install GLUT:
+   - Copy the files to your MinGW include, lib directories
 
-## Project Structure
-- `masud.h` - Contains scene implementations and animations
-- `fuad.h` - Contains additional scene implementations
-- `main.cpp` - Main entry point and window management
+2. Install OpenAL:
+   - Copy the OpenAL files to your MinGW include, lib directories
+   - Run the oalinst.exe to install OpenAL on your system. ( find the .exe inside the OpenAL folder )
+
+### Automated Installation
+Run the `install.bat` script in the project root directory. This script will:
+- Search for the MinGW compiler
+- Copy necessary library files for OpenGL, GLUT, and OpenAL
+- Install OpenAL if the installer is found
+- Verify the installation and report any errors
 
 ## Notes
 - The project uses GLUT for window management and OpenGL for rendering
