@@ -1,10 +1,11 @@
+#include "shoab.h"
 #include "masud.h"
 #include "mahtab.h"
 #include "fuad.h"
 #include "welcome.h"
 
 int currentScene = 0;  // Start with welcome screen
-int numOfScene = 3;    // Total number of scenes (excluding welcome)
+int numOfScene = 4;    // Total number of scenes (excluding welcome)
 
 // Global scene management
 void cleanupCurrentScene() {
@@ -20,6 +21,10 @@ void cleanupCurrentScene() {
             break;
         case 3:
             Mahtab::cleanupScene();
+            break;
+        case 4:
+            Shoab::cleanupScene();
+            break;
     }
 }
 
@@ -37,6 +42,9 @@ void initCurrentScene() {
         case 3:
             Mahtab::initScene();
             break;
+        case 4:
+            Shoab::initScene();
+            break;
     }
 }
 
@@ -50,6 +58,12 @@ void updateWindowTitle() {
             break;
         case 2:
             glutSetWindowTitle("Masud's Scene - City view with river and road");
+            break;
+        case 3:
+            glutSetWindowTitle("Mahtab's Scene - City view with train, bridge and vehicles");
+            break;
+        case 4:
+            glutSetWindowTitle("Shoab's Scene - Factory with river and vehicles");
             break;
     }
 }
@@ -110,6 +124,9 @@ void handleKeyboard(unsigned char key, int x, int y) {
         case 3:
             Mahtab::keyboard(key, x, y);
             break;
+        case 4:
+            Shoab::keyboard(key, x, y);
+            break;
     }
 }
 
@@ -152,6 +169,9 @@ void updateFunc(int) {
         case 3:
             Mahtab::updateScene();
             break;
+        case 4:
+            Shoab::updateScene();
+            break;
     }
     glutTimerFunc(1000 / 60, updateFunc, 0);
 }
@@ -170,7 +190,11 @@ void displayFunc() {
         case 3:
             Mahtab::display();
             break;
+        case 4:
+            Shoab::display();
+            break;
     }
+    glutSwapBuffers(); 
 }
 
 
@@ -178,7 +202,7 @@ void initGLUT(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_ALPHA);
     glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
-    glutCreateWindow("Traffic Simulation");
+    glutCreateWindow("Computer Graphics Project - City View Animation");
     
     // Set initial window title
     updateWindowTitle();

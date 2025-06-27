@@ -1,4 +1,5 @@
 #pragma once
+
 #include <GL/glut.h>
 #include<GL/gl.h>
 #include <iostream>
@@ -2397,7 +2398,6 @@ namespace Masud {
         } else {
             FNight();  // Call the night setup
         }
-        glutSwapBuffers();  // Swap buffers to update the display
     }
 
 

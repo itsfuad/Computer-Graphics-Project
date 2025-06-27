@@ -9,17 +9,7 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
-
-
-std::string resolvePath(const std::string& filePath) {
-
-    std::string basePath = __FILE__;
-    size_t lastSlash = basePath.find_last_of("/\\");
-    std::string dir = (lastSlash != std::string::npos) ? basePath.substr(0, lastSlash + 1) : "";
-
-    return dir + filePath;
-}
-
+#include "path.h"
 
 
 class AudioManager {
@@ -29,14 +19,6 @@ private:
     std::unordered_map<std::string, ALuint> buffers;
     std::unordered_map<std::string, ALuint> sources;
     bool isInitialized = false;
-
-    bool isAbsolutePath(const std::string& path) {
-#ifdef _WIN32
-        return path.size() > 1 && path[1] == ':';
-#else
-        return !path.empty() && path[0] == '/';
-#endif
-    }
 
     void cleanupSource(const std::string& name) {
         auto it = sources.find(name);

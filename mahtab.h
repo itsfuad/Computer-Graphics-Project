@@ -1,3 +1,5 @@
+#pragma once
+
 #include <windows.h>
 #include <mmsystem.h>
 #include <GL/glut.h>
@@ -1413,7 +1415,6 @@ namespace Mahtab {
             }
         }
         glFlush();
-        glutSwapBuffers();
     }
     void updateCloud(int value)
     {

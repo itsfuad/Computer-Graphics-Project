@@ -3128,8 +3128,6 @@ namespace Fuad {
         }
         
         drawDebugOverlay();
-
-        glutSwapBuffers();
     }
 
     void hideWarningMessage(int value) {
