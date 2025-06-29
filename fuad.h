@@ -22,14 +22,15 @@ const int WINDOW_HEIGHT = 600;
 
 namespace Fuad {
 
-    const float USER_CAR_SPEED_BASE = 3.0f;
-    const float USER_HUMAN_SPEED = 2.80f;
+    const float ANIMATION_SPEED = 1.0f;
+    const float USER_CAR_SPEED_BASE = 3.0f * ANIMATION_SPEED;
+    const float USER_HUMAN_SPEED = 2.80f * ANIMATION_SPEED;
     const int MIN_TIME_BETWEEN_SPAWNS_CAR = 30;
 
     const int MAX_ACTIVE_HUMANS = 10;
     const int MAX_ACTIVE_VEHICLES = 8;
     const int MIN_TIME_BETWEEN_SPAWNS_HUMAN = 15;
-    const float USER_HUMAN_SIDEWALK_SPEED_FACTOR = 1.2f;
+    const float USER_HUMAN_SIDEWALK_SPEED_FACTOR = 1.2f * ANIMATION_SPEED;
     const int HUMAN_SPAWN_RATE_SIDEWALK = 120;
 
     const int CAR_SPAWN_RATE = 100;
@@ -54,7 +55,7 @@ namespace Fuad {
     const float CAR_SPAWN_OFFSCREEN_DISTANCE = 100.0f;
 
 
-    const float USER_DAY_NIGHT_CYCLE_SPEED = 0.0008f;
+    const float USER_DAY_NIGHT_CYCLE_SPEED = 0.0008f * ANIMATION_SPEED;
     float currentTimeOfDay = 0.3f;
     bool isNight = false;
     unsigned char frameCount = 0;
@@ -118,6 +119,7 @@ namespace Fuad {
     class StreetLamp;
     class BlurrySkyline;
     class Star;
+    class ShootingStar;
     class Cloud;
     class Drawable;
 
@@ -136,6 +138,7 @@ namespace Fuad {
     std::vector<std::shared_ptr<Vehicle>> vehicles; 
     std::vector<std::shared_ptr<Human>> activeHumans;
     std::vector<std::shared_ptr<Star>> stars;
+    std::vector<std::shared_ptr<ShootingStar>> shootingStars;
 
     void drawDebugOverlay() {
         for (const auto& debugCall : debugCalls) {
@@ -322,6 +325,73 @@ namespace Fuad {
         }
     };
 
+    class ShootingStar : public Drawable {
+    public:
+        float speed;
+        float angle;
+        float trailLength;
+        float alpha;
+        bool active;
+        
+        ShootingStar() : Drawable(0, 0), speed(0), angle(0), trailLength(0), alpha(0), active(false) {}
+        
+        void spawn() {
+            // Spawn from top of screen
+            x = rand() % WINDOW_WIDTH;
+            y = WINDOW_HEIGHT + 10.0f; // Reduced from +50 to +10
+            
+            // Random angle (downward, slightly diagonal)
+            angle = (3 * M_PI / 2) + ((rand() % 60) - 30) * M_PI / 180.0f; // Changed from M_PI/2 to 3*M_PI/2
+            
+            speed = 2.0f + (rand() % 3); // Reduced speed from 3-6 to 2-4
+            trailLength = 30.0f + (rand() % 40); // Trail length between 30-70
+            alpha = 1.0f;
+            active = true;
+        }
+        
+        void update() override {
+            if (!active || !isNight) return;
+            
+            // Move shooting star
+            x += cos(angle) * speed;
+            y += sin(angle) * speed;
+            
+            // Fade out as it moves
+            alpha -= 0.02f;
+            
+            // Deactivate if off screen or faded out
+            if (x < -100 || x > WINDOW_WIDTH + 100 || y < -100 || alpha <= 0) {
+                active = false;
+            }
+        }
+        
+        void draw() override {
+            if (!active || !isNight) return;
+            
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            
+            // Draw trail
+            glColor4f(1.0f, 1.0f, 1.0f, alpha * 0.3f);
+            glLineWidth(2.0f);
+            glBegin(GL_LINES);
+            float trailX = x - cos(angle) * trailLength;
+            float trailY = y - sin(angle) * trailLength;
+            glVertex2f(trailX, trailY);
+            glVertex2f(x, y);
+            glEnd();
+            
+            // Draw bright head
+            glColor4f(1.0f, 1.0f, 1.0f, alpha);
+            glPointSize(3.0f);
+            glBegin(GL_POINTS);
+            glVertex2f(x, y);
+            glEnd();
+            
+            glDisable(GL_BLEND);
+        }
+    };
+
     class TrafficSignal : public Drawable {
     public:
         enum class TrafficLightState { RED, GREEN };
@@ -492,6 +562,7 @@ namespace Fuad {
         float currentSidewalkY;
         bool onBottomSidewalkInitially;
         bool willCrossRoad;
+        bool cameFromLeft; // Track original spawn direction
         float speedFactor;
         float speed;
 
@@ -561,6 +632,7 @@ namespace Fuad {
             hairStyle = style;
             onBottomSidewalkInitially = bottomSidewalk;
             willCrossRoad = crossRoad;
+            cameFromLeft = (startX < WINDOW_WIDTH / 2); // Set original spawn direction
 
             speedFactor = 1.0f + (rand() % 41) / 100.0f;
             speed = 0.7f * speedFactor;
@@ -571,10 +643,11 @@ namespace Fuad {
             state = HumanState::WALKING_ON_SIDEWALK;
             currentSidewalkY = startY;
 
-            if (!willCrossRoad) {
-                targetX = (startX < WINDOW_WIDTH / 2) ? WINDOW_WIDTH + 50.0f : -50.0f;
-            } else {
+            // Set target based on crossing state
+            if (willCrossRoad) {
                 targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
+            } else {
+                targetX = cameFromLeft ? WINDOW_WIDTH + 50.0f : -50.0f;
             }
         }
 
@@ -594,18 +667,23 @@ namespace Fuad {
             if (state == HumanState::DESPAWNED) return; 
 
             bool isCurrentlyMoving = false;
-            float effectiveSpeed = speed;
+            float effectiveSpeed = speed * USER_HUMAN_SIDEWALK_SPEED_FACTOR;
             float walkCycleSpeed = 0.2f;  
 
             switch (state) {
                 case HumanState::WALKING_ON_SIDEWALK:
                     isCurrentlyMoving = true;
                     y = currentSidewalkY;
-                    effectiveSpeed *= USER_HUMAN_SIDEWALK_SPEED_FACTOR;
                     walkCycleSpeed = effectiveSpeed * SYNC_CONST;  
+                    // Removed dynamic targetX update here
                     if (fabs(x - targetX) < effectiveSpeed * 1.5f) {
                         x = targetX;
-                        state = willCrossRoad ? HumanState::WAITING_AT_CROSSING_EDGE : HumanState::DESPAWNED;
+                        if (willCrossRoad) {
+                            state = HumanState::WAITING_AT_CROSSING_EDGE;
+                        } else {
+                            state = HumanState::DESPAWNED;
+                            reset();
+                        }
                     } else if (x < targetX) {
                         x += effectiveSpeed;
                         startWalking(0); 
@@ -617,7 +695,16 @@ namespace Fuad {
 
                 case HumanState::WAITING_AT_CROSSING_EDGE:
                     stopWalking();
-                    if (TrafficSignal::lightState == TrafficSignal::TrafficLightState::RED && !TrafficSignal::yellowLightOn) {
+                    if (!willCrossRoad) {
+                        // Changed mind, go back to walking away
+                        // Determine which edge to go to based on current position
+                        if (x > WINDOW_WIDTH / 2) {
+                            targetX = WINDOW_WIDTH + 50.0f; // Go to right edge
+                        } else {
+                            targetX = -50.0f; // Go to left edge
+                        }
+                        state = HumanState::WALKING_ON_SIDEWALK;
+                    } else if (TrafficSignal::lightState == TrafficSignal::TrafficLightState::RED && !TrafficSignal::yellowLightOn) {
                         state = HumanState::CROSSING_ROAD;
                     }
                     break;
@@ -670,7 +757,6 @@ namespace Fuad {
                 
                 case HumanState::DESPAWNED:
                     stopWalking();
-                    
                     break;
             }
 
@@ -874,9 +960,27 @@ namespace Fuad {
 
             
             if (DEBUG_ON) {  
+                // Draw debug bounding box
                 Rect b = getBounds();
                 glColor3f(1.0f, 1.0f, 0.0f);  
                 drawBound(b.x, b.y, 25, 45, -13, -5);
+                
+                // Draw crossing indicator triangle above bounding box
+                const float triangleSize = 6.0f;
+                const float triangleY = b.y + b.h + 10.0f; // Above the bounding box
+                
+                if (willCrossRoad) {
+                    glColor3f(1.0f, 0.0f, 0.0f); // Red triangle for will cross
+                } else {
+                    glColor3f(0.0f, 1.0f, 0.0f); // Green triangle for won't cross
+                }
+                
+                // Draw downward pointing triangle
+                glBegin(GL_TRIANGLES);
+                glVertex2f(b.x + b.w/2, triangleY + 30); // Top point (center of bounding box)
+                glVertex2f(b.x + b.w/2 - triangleSize, triangleY + 30 + triangleSize); // Bottom left
+                glVertex2f(b.x + b.w/2 + triangleSize, triangleY + 30 + triangleSize); // Bottom right
+                glEnd();
             }
 
             glPopMatrix();  
@@ -1519,6 +1623,26 @@ namespace Fuad {
                 glVertex2f(star->x, star->y);
                 glEnd();
             }
+        }
+    }
+
+    void updateShootingStars() {
+        if (!isNight) return;
+        
+        // Randomly spawn new shooting stars
+        if (rand() % 100 == 0) { // Increased from 300 to 100 (1 in 100 chance per frame)
+            // Find an inactive shooting star to reuse
+            for (auto& shootingStar : shootingStars) {
+                if (!shootingStar->active) {
+                    shootingStar->spawn();
+                    break;
+                }
+            }
+        }
+        
+        // Update all shooting stars
+        for (auto& shootingStar : shootingStars) {
+            shootingStar->update();
         }
     }
 
@@ -2583,6 +2707,12 @@ namespace Fuad {
         }
 
         updateStars();
+        updateShootingStars();
+        
+        // Draw shooting stars
+        for (auto& shootingStar : shootingStars) {
+            shootingStar->draw();
+        }
     }
 
 
@@ -2980,6 +3110,12 @@ namespace Fuad {
             float size = 1.0f + (rand() % 30) / 10.0f;
             stars.push_back(std::make_shared<Star>(x, y, size));
         }
+        
+        // Initialize shooting stars
+        shootingStars.clear();
+        for (int i = 0; i < 5; i++) {
+            shootingStars.push_back(std::make_shared<ShootingStar>());
+        }
     }
 
     void initHumans() {
@@ -3201,6 +3337,8 @@ namespace Fuad {
                 activeHumans.clear();  
                 drawableObjects.clear();
                 backgroundObjects.clear();
+                stars.clear();
+                shootingStars.clear();
                 exit(0);
                 break;
         }
@@ -3242,6 +3380,7 @@ namespace Fuad {
         std::cout << "D: Toggle Debug Bounding Boxes" << std::endl;
         std::cout << "N: Toggle Day/Night" << std::endl;
         std::cout << "M: Toggle Background Traffic Sound" << std::endl;
+        std::cout << "Left Click: Toggle human's crossing behavior" << std::endl;
         std::cout << "ESC: Exit" << std::endl;
     }
 
@@ -3255,6 +3394,7 @@ namespace Fuad {
         drawableObjects.clear();
         backgroundObjects.clear();
         stars.clear();
+        shootingStars.clear();
         
         // Reset state
         hasInit = false;
@@ -3270,5 +3410,39 @@ namespace Fuad {
         frameCount = 0;
 
         std::cout << "Fuad's scene cleaned up" << std::endl;
+    }
+
+    void mouse(int button, int state, int x, int y) {
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+            // Convert screen coordinates to world coordinates
+            // Note: OpenGL uses bottom-left origin, but mouse coordinates are top-left
+            float worldY = WINDOW_HEIGHT - y;
+            
+            // Check if click is inside any human's bounding box
+            for (auto& human : activeHumans) {
+                if (human->state != Human::HumanState::DESPAWNED) {
+                    Rect bounds = human->getBounds();
+                    // Adjust bounds to match the debug bounding box
+                    Rect debugBounds = {bounds.x - 13, bounds.y - 5, 25, 45};
+                    
+                    if (x >= debugBounds.x && x <= debugBounds.x + debugBounds.w &&
+                        worldY >= debugBounds.y && worldY <= debugBounds.y + debugBounds.h) {
+                        // Toggle willCrossRoad
+                        human->willCrossRoad = !human->willCrossRoad;
+                        
+                        // Update target based on new willCrossRoad state
+                        if (human->willCrossRoad) {
+                            // Should go to crossing
+                            human->targetX = HUMAN_CROSSING_CENTER_X + (rand() % (int)(HUMAN_CROSSING_WIDTH / 2) - (int)(HUMAN_CROSSING_WIDTH / 4));
+                        } else {
+                            // Should go to edge of screen - use original spawn direction
+                            human->targetX = human->cameFromLeft ? WINDOW_WIDTH + 50.0f : -50.0f;
+                        }
+                        
+                        break; // Only toggle one human per click
+                    }
+                }
+            }
+        }
     }
 }

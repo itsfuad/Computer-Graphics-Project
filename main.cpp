@@ -137,7 +137,7 @@ void handleMouse(int button, int state, int x, int y) {
             Welcome::mouse(button, state, x, y);
             break;
         case 1:
-            //Fuad::mouse(button, state, x, y);
+            Fuad::mouse(button, state, x, y);
             break;
         case 2:
             Masud::mouse(button, state, x, y);

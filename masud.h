@@ -2488,8 +2488,12 @@ namespace Masud {
         cout<<"For night press : n"<<endl;
         cout<<"For day press   : d"<<endl;
         cout<<endl;
-        cout<<"To move the boat up press   : up button"<<endl;
-        cout<<"To move the boat down press : down button"<<endl;
+        cout<<"To move the boat up press   : up key button"<<endl;
+        cout<<"To move the boat down press : down key button"<<endl;
+        cout<<endl;
+        cout<<"to stop the all objects on the road : mouse right button"<<endl;
+        cout<<endl;
+        cout<<"to update speed all the objects on the road : mouse left button"<<endl;
         cout<<endl;
         cout<<"To close the animation press : Esc button"<<endl;
     }
