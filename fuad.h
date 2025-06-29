@@ -258,9 +258,53 @@ namespace Fuad {
     bool checkAABBCollision(Rect r1, Rect r2) {
         return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
     }
+
     int timeNow() {
         using namespace std::chrono;
         return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    }
+
+    void drawRadialGradientCircle(float cx, float cy, float radius, float r, float g, float b) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glBegin(GL_TRIANGLE_FAN);
+
+        // Center: full color and full alpha
+        glColor4f(r, g, b, 0.6f);
+        glVertex2f(cx, cy);
+
+        // Outer ring: same color, 0 alpha
+        glColor4f(r, g, b, 0.0f);
+        for (int i = 0; i <= 64; ++i) {
+            float angle = 2.0f * M_PI * i / 64;
+            float x = cx + cos(angle) * radius;
+            float y = cy + sin(angle) * radius;
+            glVertex2f(x, y);
+        }
+
+        glEnd();
+        glDisable(GL_BLEND);
+    }
+
+    void drawLinearGradientBeam(float cx, float topY, float bottomY, float topWidth, float bottomWidth, float r, float g, float b) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glBegin(GL_QUADS);
+
+        // Top edge (bright)
+        glColor4f(r, g, b, 0.3f);
+        glVertex2f(cx - topWidth / 2, topY);
+        glVertex2f(cx + topWidth / 2, topY);
+
+        // Bottom edge (faded)
+        glColor4f(r, g, b, 0.0f);
+        glVertex2f(cx + bottomWidth / 2, bottomY);
+        glVertex2f(cx - bottomWidth / 2, bottomY);
+
+        glEnd();
+        glDisable(GL_BLEND);
     }
 
 
@@ -290,10 +334,31 @@ namespace Fuad {
             blinkPhase(rand() % 628)
         {}
         void update() override {
-
+            
         }
         void draw() override {
-
+            float starAlpha = 0.0f;
+            if (currentTimeOfDay >= 0.85f) {
+                starAlpha = 1.0f;
+            } else if (currentTimeOfDay >= 0.80f) {
+                starAlpha = (currentTimeOfDay - 0.80f) / 0.05f;
+            } else if (currentTimeOfDay <= 0.15f) {
+                starAlpha = 1.0f;
+            } else if (currentTimeOfDay <= 0.20f) {
+                starAlpha = (0.20f - currentTimeOfDay) / 0.05f;
+            }
+            if (starAlpha > 0.0f) {
+                float blinkFactor = 0.5f + 0.5f * sin(blinkPhase);
+                float finalBrightness = baseBrightness * blinkFactor;
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glColor4f(1.0f, 1.0f, 0.9f, starAlpha * finalBrightness);
+                glPointSize(size);
+                glBegin(GL_POINTS);
+                glVertex2f(x, y);
+                glEnd();
+                glDisable(GL_BLEND);
+            }
         }
     };
 
@@ -350,6 +415,8 @@ namespace Fuad {
         }
         
         void update() override {
+            if (IS_PAUSED) return;
+            
             if (!active || !isNight) return;
             
             // Move shooting star
@@ -416,6 +483,7 @@ namespace Fuad {
         }
 
         void update() override {
+            if (IS_PAUSED) return;
 
             if (yellowLightOn) return;
 
@@ -451,28 +519,28 @@ namespace Fuad {
 
             for (int i = 0; i < 3; i++) {
                 float centerY = y + height - (i + 0.5f) * spacing;
+                bool drawGlow = true;
+                Color lightColor;
                 if(i == 0 && lightState == TrafficLightState::RED && !yellowLightOn)
-                    glColor3f(1.0f, 0.0f, 0.0f);
+                    lightColor = {1.0f, 0.0f, 0.0f};
                 else if(i == 1 && yellowLightOn)
-                    glColor3f(1.0f, 1.0f, 0.0f);
+                    lightColor = {1.0f, 1.0f, 0.0f};
                 else if(i == 2 && lightState == TrafficLightState::GREEN && !yellowLightOn)
-                    glColor3f(0.0f, 1.0f, 0.0f);
-                else
-                    glColor3f(0.3f, 0.3f, 0.3f);
+                    lightColor = {0.0f, 1.0f, 0.0f};
+                else {
+                    lightColor = {0.3f, 0.3f, 0.3f};
+                    drawGlow = false;
+                }
+                
+                setObjectColor(lightColor, true);
                 drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius);
                 drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius);
-                bool drawGlow = true;
-                if(i == 0 && lightState == TrafficLightState::RED && !yellowLightOn)
-                    glColor4f(1.0f, 0.0f, 0.0f, 0.3f);
-                else if(i == 1 && yellowLightOn)
-                    glColor4f(1.0f, 1.0f, 0.0f, 0.3f);
-                else if(i == 2 && lightState == TrafficLightState::GREEN && !yellowLightOn)
-                    glColor4f(0.0f, 1.0f, 0.0f, 0.3f);
-                else
-                    drawGlow = false;
                 if (drawGlow) {
-                    drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
-                    drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
+                    // drawCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
+                    // drawCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius * 1.8f);
+                    // use gradient circle for glow effect
+                    drawRadialGradientCircle(x + translateX + gap, centerY + translateY - lightRadius, lightRadius * 1.8f, lightColor.r, lightColor.g, lightColor.b);
+                    drawRadialGradientCircle(x + translateX + width - gap, centerY + translateY - lightRadius, lightRadius * 1.8f, lightColor.r, lightColor.g, lightColor.b);
                 }
                 setObjectColor(0.0f, 0.0f, 0.0f);
                 drawTriangle(x + translateX, centerY + translateY, x + translateX - 10, centerY + translateY, x + translateX, centerY - 10 + translateY);
@@ -664,7 +732,7 @@ namespace Fuad {
 
         
         void update() {
-            if (state == HumanState::DESPAWNED) return; 
+            if (IS_PAUSED) return;
 
             bool isCurrentlyMoving = false;
             float effectiveSpeed = speed * USER_HUMAN_SIDEWALK_SPEED_FACTOR;
@@ -1101,10 +1169,7 @@ namespace Fuad {
         }
 
         void update() override {
-
-            if (state != VehicleState::ACTIVE) {
-                return;
-            }
+            if (IS_PAUSED) return;
 
             target_speed = USER_CAR_SPEED_BASE * speedFactor;
 
@@ -1236,9 +1301,9 @@ namespace Fuad {
 
             
             if (isNight) {
-                glColor4f(1.0f, 1.0f, 0.7f, 0.3f); 
-                drawCircle(x + width, y + height * 0.4f, 20.0f);
-                glColor3f(1.0f, 1.0f, 0.8f); 
+                //drawCircle(x + width, y + height * 0.4f, 20.0f);
+                // Draw headlights with a slight glow gradient
+                drawRadialGradientCircle(x + width * 0.95f, y + height * 0.4f, 20.0f, 1.0f, 1.0f, 0.7f);
             } else {
                 glColor3f(0.9f, 0.9f, 0.9f); 
             }
@@ -1339,9 +1404,9 @@ namespace Fuad {
 
             
             if (isNight) {
-                glColor4f(1.0f, 1.0f, 0.7f, 0.3f); 
-                drawCircle(x + width, y + height * 0.2f, 25.0f);
-                glColor3f(1.0f, 1.0f, 0.8f); 
+                //drawCircle(x + width, y + height * 0.2f, 25.0f);
+                // Draw headlights with a slight glow gradient
+                drawRadialGradientCircle(x + width * 0.95f, y + height * 0.2f, 25.0f, 1.0f, 1.0f, 0.7f);
             } else {
                 setObjectColor(0.9f, 0.9f, 0.9f);
             }
@@ -1402,9 +1467,8 @@ namespace Fuad {
 
             
             if (isNight) {
-                glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
-                drawCircle(x + width, y + height * 0.25f, 30.0f);
-                glColor3f(1.0f, 1.0f, 0.8f);
+                //drawCircle(x + width, y + height * 0.25f, 30.0f);
+                drawRadialGradientCircle(x + width * 0.95f, y + height * 0.25f, 30.0f, 1.0f, 1.0f, 0.7f);
             } else {
                 setObjectColor(0.9f, 0.9f, 0.9f);
             }
@@ -1464,9 +1528,9 @@ namespace Fuad {
             if (current_speed < 0.1f) glColor3f(1.0f, 0.0f, 0.0f); else glColor3f(0.6f, 0.0f, 0.0f);
             drawRect(x, y + height * 0.2f, 4, 8); 
             if (isNight) {
-                glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
-                drawCircle(x + width, y + height * 0.25f, 25.0f);
-                glColor3f(1.0f, 1.0f, 0.8f);
+                //glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
+                //drawCircle(x + width, y + height * 0.25f, 25.0f);
+                drawRadialGradientCircle(x + width * 0.95f, y + height * 0.25f, 25.0f, 1.0f, 1.0f, 0.7f);
             } else {
                 setObjectColor(0.9f, 0.9f, 0.9f);
             }
@@ -1529,9 +1593,9 @@ namespace Fuad {
             if (current_speed < 0.1f) glColor3f(1.0f, 0.0f, 0.0f); else glColor3f(0.6f, 0.0f, 0.0f);
             drawRect(x + 2, y + height * 0.5f, 4, 6); 
             if (isNight) {
-                glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
-                drawCircle(x + width, y + height * 0.5f, 25.0f);
-                glColor3f(1.0f, 1.0f, 0.8f);
+                //glColor4f(1.0f, 1.0f, 0.7f, 0.3f);
+                //drawCircle(x + width, y + height * 0.5f, 25.0f);
+                drawRadialGradientCircle(x + width * 0.95f, y + height * 0.5f, 25.0f, 1.0f, 1.0f, 0.7f);
             } else {
                 setObjectColor(0.9f, 0.9f, 0.9f);
             }
@@ -1562,9 +1626,10 @@ namespace Fuad {
         float b = 0.2f - (0.2f * sunsetFactor);  
 
         
-        glColor4f(r, g, b, 0.3f);
-        drawCircle(x, y, radius * 1.5f);
-
+        glColor3f(r, g, b);
+        //drawCircle(x, y, radius * 1.5f);
+        //gradient instead of solid circle
+        drawRadialGradientCircle(x, y, radius * 1.5f, r, g, b);
         
         glColor3f(r, g, b);
         drawCircle(x, y, radius);
@@ -1572,9 +1637,9 @@ namespace Fuad {
 
     void drawMoon(float x, float y, float radius) {
         
-        glColor4f(0.9f, 0.9f, 0.95f, 0.3f);
-        drawCircle(x, y, radius * 1.5f);
-
+        glColor3f(1.0f, 1.0f, 1.0f);
+        //drawCircle(x, y, radius * 1.5f);
+        drawRadialGradientCircle(x, y, radius * 1.5f, 0.9f, 0.9f, 0.95f);
         
         glColor3f(0.9f, 0.9f, 0.95f);
         drawCircle(x, y, radius);
@@ -1587,41 +1652,20 @@ namespace Fuad {
     }
 
     void updateStars() {
-        
-        
         float starAlpha = 0.0f;
-
-        if (currentTimeOfDay >= 0.85f) {  
-            
+        if (currentTimeOfDay >= 0.85f) {
             starAlpha = 1.0f;
-        } else if (currentTimeOfDay >= 0.80f) {  
-            
+        } else if (currentTimeOfDay >= 0.80f) {
             starAlpha = (currentTimeOfDay - 0.80f) / 0.05f;
-        } else if (currentTimeOfDay <= 0.15f) {  
-            
+        } else if (currentTimeOfDay <= 0.15f) {
             starAlpha = 1.0f;
-        } else if (currentTimeOfDay <= 0.20f) {  
-            
+        } else if (currentTimeOfDay <= 0.20f) {
             starAlpha = (0.20f - currentTimeOfDay) / 0.05f;
         }
-
         if (starAlpha > 0.0f) {
             for (auto& star : stars) {
-                
-                if (!IS_PAUSED) { 
-                    star->blinkPhase += 0.05f;
-                    if (star->blinkPhase > 628.0f) star->blinkPhase -= 628.0f; 
-                }
-
-                
-                float blinkFactor = 0.5f + 0.5f * sin(star->blinkPhase);
-                float finalBrightness = star->baseBrightness * blinkFactor;
-
-                glColor4f(1.0f, 1.0f, 0.9f, starAlpha * finalBrightness);
-                glPointSize(star->size);
-                glBegin(GL_POINTS);
-                glVertex2f(star->x, star->y);
-                glEnd();
+                star->blinkPhase += 0.05f;
+                if (star->blinkPhase > 628.0f) star->blinkPhase -= 628.0f;
             }
         }
     }
@@ -1678,6 +1722,7 @@ namespace Fuad {
         }
 
         void update() override {
+            if (IS_PAUSED) return;
             
             bool transitionToNight = isNight && !wasNightInternal;
             bool transitionToDay = !isNight && wasNightInternal;
@@ -1780,6 +1825,7 @@ namespace Fuad {
         }
 
         void update() override {
+            if (IS_PAUSED) return;
             bool transitionToNight = isNight && !wasNightInternal;
             bool transitionToDay = !isNight && wasNightInternal;
             wasNightInternal = isNight;
@@ -1862,6 +1908,7 @@ namespace Fuad {
         }
 
         void update() override {
+            if (IS_PAUSED) return;
             bool transitionToNight = isNight && !wasNightInternal;
             bool transitionToDay = !isNight && wasNightInternal;
             wasNightInternal = isNight;
@@ -1941,6 +1988,7 @@ namespace Fuad {
         }
 
         void update() override {
+            if (IS_PAUSED) return;
             
             bool transitionToNight = isNight && !wasNightInternal;
             bool transitionToDay = !isNight && wasNightInternal;
@@ -2045,6 +2093,7 @@ namespace Fuad {
             : Building(_x, _y, _width, _height), shopName(_name), awningColor(_color), isOpen(true) {}
 
         void update() override {
+            if (IS_PAUSED) return;
             bool transitionToNight = isNight && !wasNightInternal;
             bool transitionToDay = !isNight && wasNightInternal;
             wasNightInternal = isNight;
@@ -2380,6 +2429,7 @@ namespace Fuad {
         }
     };
 
+
     class StreetLamp : public Drawable {
     private:
         bool isLid = false;
@@ -2506,32 +2556,15 @@ namespace Fuad {
         }
 
         void drawLights() {
-            glColor4f(1.0f, 0.95f, 0.8f, 0.15f);
-            drawCircle(40, 100, 25);
+            // Radial gradient glow
+            drawRadialGradientCircle(40, 100, 30, 1.0f, 0.95f, 0.8f);
 
-            
-            glColor4f(1.0f, 0.95f, 0.8f, 0.3f);
-            drawCircle(40, 100, 15);
+            // Light beam gradient
+            drawLinearGradientBeam(40, 90, 0, 6, 60, 1.0f, 0.95f, 0.8f);
 
-            
-            glColor4f(1.0f, 0.95f, 0.8f, 0.5f);
-            drawCircle(40, 100, 8);
-
-            
+            // Center glow bulb
             glColor3f(1.0f, 0.95f, 0.8f);
             drawCircle(40, 100, 5);
-
-            
-            glColor4f(1.0f, 0.95f, 0.8f, 0.2f);
-            glBegin(GL_TRIANGLES);
-            glVertex2f(40, 90);  
-            glVertex2f(20, 0);  
-            glVertex2f(60, 0);  
-            glEnd();
-
-            
-            glColor4f(1.0f, 0.95f, 0.8f, 0.1f);
-            drawCircle(40, 0, 25); 
         }
     };
 
@@ -2686,6 +2719,7 @@ namespace Fuad {
     }
 
     void updateSky() {
+        if (IS_PAUSED) return;
             
         float sunX = WINDOW_WIDTH * 0.3f;  
         float moonX = WINDOW_WIDTH * 0.8f; 
@@ -2708,6 +2742,11 @@ namespace Fuad {
 
         updateStars();
         updateShootingStars();
+
+        // Draw stars
+        for (auto& star : stars) {
+            star->draw();
+        }
         
         // Draw shooting stars
         for (auto& shootingStar : shootingStars) {
@@ -2778,6 +2817,7 @@ namespace Fuad {
 
     void initBuildings() {
         backgroundObjects.push_back(std::make_shared<BlurrySkyline>(0, SIDEWALK_TOP_Y_END, WINDOW_WIDTH, 100));
+        backgroundObjects.push_back(std::make_shared<GlassSkyscraper>(-10.0f, SIDEWALK_TOP_Y_END, 80.0f, 250.0f));
         backgroundObjects.push_back(std::make_shared<BrickBuilding>(80.0f, SIDEWALK_TOP_Y_END, 120.0f, 140.0f));
         backgroundObjects.push_back(std::make_shared<Shop>(220.0f, SIDEWALK_TOP_Y_END, 90.0f, 100.0f, "CAFE", Color{0.8f, 0.2f, 0.2f}));
         backgroundObjects.push_back(std::make_shared<Shop>(320.0f, SIDEWALK_TOP_Y_END, 100.0f, 100.0f, "BOOKS", Color{0.2f, 0.2f, 0.8f}));
@@ -2922,6 +2962,7 @@ namespace Fuad {
     }
 
     void updateSkyColor() {
+        if (IS_PAUSED) return;
         
         float dayR = 0.5f, dayG = 0.7f, dayB = 1.0f;    
         float dawnR = 0.6f, dawnG = 0.5f, dawnB = 0.4f;  
@@ -3045,6 +3086,7 @@ namespace Fuad {
 
 
     void updateTime() {
+        if (IS_PAUSED) return;
         currentTimeOfDay += USER_DAY_NIGHT_CYCLE_SPEED;
         if (currentTimeOfDay >= 1.0f) {
             currentTimeOfDay -= 1.0f;
