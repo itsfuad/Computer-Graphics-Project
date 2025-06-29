@@ -95,7 +95,8 @@ echo [5/5] Copying libraries...
 :: FreeGLUT libraries
 echo   FreeGLUT libraries (%freeglut_lib_dir%)
 xcopy /y "%~dp0freeglut\lib\%freeglut_lib_dir%\*.a" "%target_lib%\" >nul 2>&1
-xcopy /y "%~dp0freeglut\bin\%freeglut_lib_dir%\*.dll" "%target_dir%\bin\" >nul 2>&1
+rem copy dll to windows system directory
+xcopy /y "%~dp0freeglut\bin\%freeglut_lib_dir%\*.dll" "%windir%" >nul 2>&1
 if %errorlevel% equ 0 (
     echo     FreeGLUT libraries copied
 ) else (
