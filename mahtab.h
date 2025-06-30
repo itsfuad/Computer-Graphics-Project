@@ -1,14 +1,11 @@
 #pragma once
-
-#include <windows.h>
-#include <mmsystem.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include <cstring>
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
+#include <iostream>
 
 namespace Mahtab {
     // Global variables
@@ -30,23 +27,20 @@ namespace Mahtab {
     float busX = -80.0f;  // For bus1
     float busX2 = 0.0f;  // For bus2
     float planeX = 0.0f;
-    float position = 0.0f;
-    float speed = 1.7f;
-    float carSpeed = 2.0f;  // Reduced speed for smoother movement
-    float busSpeed = 2.5f;  // Reduced speed for smoother movement
+    float position = 0.0f; // for bird movement 
+    float speed = 1.7f;    // speed of bird 
     float waterFlow = 0.0f;  // For water animation
     float boatX = -200.0f;  // Starting position for boat
     float boatSpeed = 1.5f; // Boat speed, adjustable by mouse click
 
     // Function declarations
+    /*
     void init();
     void drawCircle(int x, int y, int radius);
-    void day_sky();
-    void night_sky();
+    void sky();
     void sun();
     void tree();
-    void house_day();
-    void house_night();
+    void house();
     void car1();
     void car2();
     void bus1();
@@ -54,9 +48,12 @@ namespace Mahtab {
     void boat();
     void road();
     void greenPart_bush();
+    void cloud();
+    void lamp_light();
     void display();
     void keyboard(unsigned char key, int x, int y);
     void mouse(int button, int state, int x, int y);
+    */
 
     void drawCircle(int x, int y, int radius)
     {
@@ -70,7 +67,7 @@ namespace Mahtab {
         glEnd();
     }
 
-    void road()
+    void road() //object 1
     {
         glBegin(GL_QUADS);
         glColor3f(0.392f, 0.392f, 0.392f);  //Dark Grey Road Middle Part of road
@@ -120,163 +117,166 @@ namespace Mahtab {
         glVertex2i(160, 347);
         glEnd();
     }
-    void day_sky()
+    void sky() //object 2
     {
-        glBegin(GL_QUADS);
-        glColor3f(0.784f, 0.96f, 0.96f);  //blue
-        glVertex2i(0,600);
-        glVertex2i(1000, 600);
-        glVertex2i(1000, 300);
-        glVertex2i(0, 300);
-        glEnd();
-    }
-    void night_sky()
-    {
-        glBegin(GL_QUADS);
-        glColor3f(isRaining ? 0.02f : 0.05f, isRaining ? 0.02f : 0.05f, isRaining ? 0.15f : 0.2f);
-        glVertex2i(0, 600);
-        glVertex2i(1000, 600);
-        glVertex2i(1000, 300);
-        glVertex2i(0, 300);
-        glEnd();
-
-        if (!isRaining) {
-            const int num_stars = 16;
-            int star_positions[num_stars][2] = {
-                {50, 550}, {150, 500}, {200, 560}, {350, 520},
-                {300, 590}, {420, 550}, {450, 480}, {500, 560},
-                {600, 500}, {650, 570}, {700, 500}, {750, 470},
-                {800, 550}, {850, 530}, {900, 560}, {950, 480}
-            };
-
-            glPointSize(3.0f);
-            glBegin(GL_POINTS);
-            for (int i = 0; i < num_stars; ++i) {
-                float brightness = 0.5f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 0.5f));
-                glColor3f(brightness, brightness, brightness);
-                glVertex2i(star_positions[i][0], star_positions[i][1]);
-            }
+        if (day) {
+            // Day sky
+            glBegin(GL_QUADS);
+            glColor3f(0.784f, 0.96f, 0.96f);  //blue
+            glVertex2i(0,600);
+            glVertex2i(1000, 600);
+            glVertex2i(1000, 300);
+            glVertex2i(0, 300);
             glEnd();
+        } else {
+            // Night sky
+            glBegin(GL_QUADS);
+            glColor3f(isRaining ? 0.02f : 0.05f, isRaining ? 0.02f : 0.05f, isRaining ? 0.15f : 0.2f);
+            glVertex2i(0, 600);
+            glVertex2i(1000, 600);
+            glVertex2i(1000, 300);
+            glVertex2i(0, 300);
+            glEnd();
+
+            if (!isRaining) {
+                const int num_stars = 16;
+                int star_positions[num_stars][2] = {
+                    {50, 550}, {150, 500}, {200, 560}, {350, 520},
+                    {300, 590}, {420, 550}, {450, 480}, {500, 560},
+                    {600, 500}, {650, 570}, {700, 500}, {750, 470},
+                    {800, 550}, {850, 530}, {900, 560}, {950, 480}
+                };
+
+                glPointSize(3.0f);
+                glBegin(GL_POINTS);
+                for (int i = 0; i < num_stars; ++i) {
+                    float brightness = 0.5f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 0.5f));
+                    glColor3f(brightness, brightness, brightness);
+                    glVertex2i(star_positions[i][0], star_positions[i][1]);
+                }
+                glEnd();
+            }
         }
     }
-    void sun()
+    void sun()//object 3
     {
         glColor3f(1.0f, 1.0f, 0.0f);  // yellow
         drawCircle(750, sunY, 30);
     }
-    void lamp_daylight()
+    void lamp_light()
     {
-        // Deep blue-tinted light for daytime
-        glColor3f(0.4f, 0.6f, 1.0f);
+        if (day) {
+            // Deep blue-tinted light for daytime
+            glColor3f(0.4f, 0.6f, 1.0f);
 
-        // Left lamp light cone
-        glBegin(GL_TRIANGLES);
-        glColor4f(0.4f, 0.6f, 1.0f, 0.8f);  // Deep blue at top
-        glVertex2i(540, 420);  // Moved left from 590
-        glColor4f(0.2f, 0.4f, 0.9f, 0.4f);  // Darker blue at bottom
-        glVertex2i(510, 347);  // Moved left from 560
-        glVertex2i(570, 347);  // Moved left from 620
-        glEnd();
+            // Left lamp light cone
+            glBegin(GL_TRIANGLES);
+            glColor4f(0.4f, 0.6f, 1.0f, 0.8f);  // Deep blue at top
+            glVertex2i(540, 420);  // Moved left from 590
+            glColor4f(0.2f, 0.4f, 0.9f, 0.4f);  // Darker blue at bottom
+            glVertex2i(510, 347);  // Moved left from 560
+            glVertex2i(570, 347);  // Moved left from 620
+            glEnd();
 
-        // Right lamp light cone
-        glBegin(GL_TRIANGLES);
-        glColor4f(0.4f, 0.6f, 1.0f, 0.8f);  // Deep blue at top
-        glVertex2i(890, 420);
-        glColor4f(0.2f, 0.4f, 0.9f, 0.4f);  // Darker blue at bottom
-        glVertex2i(860, 347);
-        glVertex2i(920, 347);
-        glEnd();
+            // Right lamp light cone
+            glBegin(GL_TRIANGLES);
+            glColor4f(0.4f, 0.6f, 1.0f, 0.8f);  // Deep blue at top
+            glVertex2i(890, 420);
+            glColor4f(0.2f, 0.4f, 0.9f, 0.4f);  // Darker blue at bottom
+            glVertex2i(860, 347);
+            glVertex2i(920, 347);
+            glEnd();
 
-        // Bright center of the lamps - intense blue-white
-        glColor3f(0.6f, 0.8f, 1.0f);
-        drawCircle(540, 440, 8);  // Moved left from 590
-        drawCircle(890, 440, 8);
-    }
-    void lamp_nightlight()
-    {
-        // Deep magenta light for night
-        glColor3f(0.8f, 0.0f, 0.8f);
+            // Bright center of the lamps - intense blue-white
+            glColor3f(0.6f, 0.8f, 1.0f);
+            drawCircle(540, 440, 8);  // Moved left from 590
+            drawCircle(890, 440, 8);
+        } 
+        else {
+            // Deep magenta light for night
+            glColor3f(0.8f, 0.0f, 0.8f);
 
-        // Left lamp light cone with gradient
-        glBegin(GL_TRIANGLES);
-        glColor3f(0.8f, 0.0f, 0.8f);  // Deep magenta at top
-        glVertex2i(540, 420);  // Moved left from 590
-        glColor3f(0.5f, 0.0f, 0.5f);  // Dark purple at bottom
-        glVertex2i(510, 347);  // Moved left from 560
-        glVertex2i(570, 347);  // Moved left from 620
-        glEnd();
+            // Left lamp light cone with gradient
+            glBegin(GL_TRIANGLES);
+            glColor3f(0.8f, 0.0f, 0.8f);  // Deep magenta at top
+            glVertex2i(540, 420);  // Moved left from 590
+            glColor3f(0.5f, 0.0f, 0.5f);  // Dark purple at bottom
+            glVertex2i(510, 347);  // Moved left from 560
+            glVertex2i(570, 347);  // Moved left from 620
+            glEnd();
 
-        // Right lamp light cone with gradient
-        glBegin(GL_TRIANGLES);
-        glColor3f(0.8f, 0.0f, 0.8f);  // Deep magenta at top
-        glVertex2i(890, 420);
-        glColor3f(0.5f, 0.0f, 0.5f);  // Dark purple at bottom
-        glVertex2i(860, 347);
-        glVertex2i(920, 347);
-        glEnd();
+            // Right lamp light cone with gradient
+            glBegin(GL_TRIANGLES);
+            glColor3f(0.8f, 0.0f, 0.8f);  // Deep magenta at top
+            glVertex2i(890, 420);
+            glColor3f(0.5f, 0.0f, 0.5f);  // Dark purple at bottom
+            glVertex2i(860, 347);
+            glVertex2i(920, 347);
+            glEnd();
 
-        // Inner bright center of the lamps - intense magenta
-        glColor3f(1.0f, 0.2f, 1.0f);
-        drawCircle(540, 440, 6);  // Moved left from 590
-        drawCircle(890, 440, 6);
+            // Inner bright center of the lamps - intense magenta
+            glColor3f(1.0f, 0.2f, 1.0f);
+            drawCircle(540, 440, 6);  // Moved left from 590
+            drawCircle(890, 440, 6);
 
-        // Middle layer glow
-        glColor3f(0.9f, 0.1f, 0.9f);
-        drawCircle(540, 440, 9);  // Moved left from 590
-        drawCircle(890, 440, 9);
+            // Middle layer glow
+            glColor3f(0.9f, 0.1f, 0.9f);
+            drawCircle(540, 440, 9);  // Moved left from 590
+            drawCircle(890, 440, 9);
 
-        // Outer glow for the lamp centers - deep magenta
-        glColor3f(0.8f, 0.0f, 0.8f);
-        drawCircle(540, 440, 12);  // Moved left from 590
-        drawCircle(890, 440, 12);
+            // Outer glow for the lamp centers - deep magenta
+            glColor3f(0.8f, 0.0f, 0.8f);
+            drawCircle(540, 440, 12);  // Moved left from 590
+            drawCircle(890, 440, 12);
+        }
     }
     void lamp_stand()
     {
         glColor3f(0.65f, 0.65f, 0.65f);  // Original grey color
-        glBegin(GL_QUADS);//1 - Left lamp
-        glVertex2i(535, 347);  // Moved left from 585
-        glVertex2i(545, 347);  // Moved left from 595
-        glVertex2i(545, 420);  // Moved left from 595
-        glVertex2i(535, 420);  // Moved left from 585
+        glBegin(GL_QUADS); //left lamp
+        glVertex2i(535, 347);  
+        glVertex2i(545, 347);  
+        glVertex2i(545, 420);  
+        glVertex2i(535, 420);
         glEnd();
 
-        glBegin(GL_QUADS);//1 - Left lamp head
-        glVertex2i(530, 440);  // Moved left from 580
-        glVertex2i(550, 440);  // Moved left from 600
-        glVertex2i(550, 420);  // Moved left from 600
-        glVertex2i(530, 420);  // Moved left from 580
+        glBegin(GL_QUADS); //left lamp head
+        glVertex2i(530, 440); 
+        glVertex2i(550, 440);  
+        glVertex2i(550, 420);  
+        glVertex2i(530, 420); 
         glEnd();
 
-        glBegin(GL_QUADS);//2 - Right lamp
+        glBegin(GL_QUADS);//Right lamp
         glVertex2i(885, 347);
         glVertex2i(895, 347);
         glVertex2i(895, 420);
         glVertex2i(885, 420);
         glEnd();
 
-        glBegin(GL_QUADS);//2 - Right lamp head
+        glBegin(GL_QUADS);//Right lamp head
         glVertex2i(880, 440);
         glVertex2i(900, 440);
         glVertex2i(900, 420);
         glVertex2i(880, 420);
         glEnd();
     }
-    void tree()
+    void tree() //object 5
     {
-        glColor3f(0.60f, 0.43f, 0.04f);  // slightly darker brown
-        glBegin(GL_QUADS);//1
+        glColor3f(0.60f, 0.43f, 0.04f);  // darker brown
+        glBegin(GL_QUADS);//tree 1
         glVertex2i(585, 400);
         glVertex2i(595, 400);
         glVertex2i(595, 490);
         glVertex2i(585, 490);
         glEnd();
-        glBegin(GL_QUADS);//2
+        glBegin(GL_QUADS);//tree 2
         glVertex2i(785, 400);
         glVertex2i(795, 400);
         glVertex2i(795, 490);
         glVertex2i(785, 490);
         glEnd();
-        glBegin(GL_QUADS);//3 - rightmost tree trunk moved further right
+        glBegin(GL_QUADS);//tree 3
         glVertex2i(935, 400);
         glVertex2i(945, 400);
         glVertex2i(945, 490);
@@ -285,7 +285,7 @@ namespace Mahtab {
 
         // tree leaves
         glColor3f(0.0f, 0.5f, 0.0f);  // dark green
-        glBegin(GL_TRIANGLES);//1
+        glBegin(GL_TRIANGLES);//tree 1 leaves
         glVertex2i(540, 490);
         glVertex2i(590, 550);
         glVertex2i(640, 490);
@@ -295,7 +295,7 @@ namespace Mahtab {
         glVertex2i(590, 610);
         glVertex2i(640, 520);
         glEnd();
-        glBegin(GL_TRIANGLES);//2
+        glBegin(GL_TRIANGLES);//tree 2 leaves
         glVertex2i(740, 490);
         glVertex2i(790, 550);
         glVertex2i(840, 490);
@@ -305,7 +305,7 @@ namespace Mahtab {
         glVertex2i(790, 610);
         glVertex2i(840, 520);
         glEnd();
-        glBegin(GL_TRIANGLES);//3 - rightmost tree leaves moved further right
+        glBegin(GL_TRIANGLES);//tree 3 leaves
         glVertex2i(890, 490);
         glVertex2i(940, 550);
         glVertex2i(990, 490);
@@ -316,7 +316,31 @@ namespace Mahtab {
         glVertex2i(990, 520);
         glEnd();
     }
-    void greenPart_bush()
+    void cloud()
+    {
+        if (day) {
+            glColor3f(1.0f, 1.0f, 1.0f);  // light grey for day
+        } else {
+            glColor3f(0.698f, 0.745f, 0.709f);  // dark grey for night
+        }
+        
+        drawCircle(90, 550, 20); // Cloud 1
+        drawCircle(120, 550, 25);
+        drawCircle(150, 550, 20);
+        drawCircle(515, 570, 15); // Cloud 2
+        drawCircle(540, 570, 20);
+        drawCircle(565, 570, 15);
+        drawCircle(745, 520, 15); // Cloud 3
+        drawCircle(770, 520, 20);
+        drawCircle(795, 520, 15);
+        drawCircle(300, 490, 15); // Cloud 4
+        drawCircle(330, 490, 20);
+        drawCircle(360, 490, 15);
+        drawCircle(905, 480, 15);  // Cloud 5
+        drawCircle(930, 480, 20);
+        drawCircle(955, 480, 15);
+    }
+    void greenPart_bush() //object 6
     {
         glBegin(GL_QUADS);
         glColor3f(0.380f, 0.670f, 0.380f);  //green bottom
@@ -342,7 +366,6 @@ namespace Mahtab {
         glVertex2i(0, 400);
         glEnd();
 
-        // Add grass pattern - original simple triangles
         glColor3f(0.0f, 0.3f, 0.0f);  // dark green grass
 
         // First cluster
@@ -505,103 +528,65 @@ namespace Mahtab {
         glVertex2i(945, 347);
         glEnd();
     }
-    void day_cloud()
+    void car1()  //object 9
     {
-        glColor3f(1.0f, 1.0f, 1.0f);  // light grey
-        drawCircle(90, 550, 20); // Cloud 1
-        drawCircle(120, 550, 25);
-        drawCircle(150, 550, 20);
-        drawCircle(515, 570, 15); // Cloud 2
-        drawCircle(540, 570, 20);
-        drawCircle(565, 570, 15);
-        drawCircle(745, 520, 15); // Cloud 3
-        drawCircle(770, 520, 20);
-        drawCircle(795, 520, 15);
-        drawCircle(300, 490, 15); // Cloud 4
-        drawCircle(330, 490, 20);
-        drawCircle(360, 490, 15);
-        drawCircle(905, 480, 15);  // Cloud 5
-        drawCircle(930, 480, 20);
-        drawCircle(955, 480, 15);
-    }
-    void night_cloud()
-    {
-        glColor3f(0.698f, 0.745f, 0.709f);
-        drawCircle(90, 550, 20); // Cloud 1
-        drawCircle(120, 550, 25);
-        drawCircle(150, 550, 20);
-        drawCircle(515, 570, 15); // Cloud 2
-        drawCircle(540, 570, 20);
-        drawCircle(565, 570, 15);
-        drawCircle(745, 520, 15); // Cloud 3
-        drawCircle(770, 520, 20);
-        drawCircle(795, 520, 15);
-        drawCircle(300, 490, 15); // Cloud 4
-        drawCircle(330, 490, 20);
-        drawCircle(360, 490, 15);
-        drawCircle(905, 480, 15);  // Cloud 5
-        drawCircle(930, 480, 20);
-        drawCircle(955, 480, 15);
-    }
-    void car1()
-    {
-        // A red car, with a unique design, shifted to the upper lane.
-        int y_offset = 100;
+        // red car
 
         // Body
         glBegin(GL_QUADS);
         glColor3f(0.8f, 0.0f, 0.0f); // Red
-        glVertex2i(150, 170 + y_offset);
-        glVertex2i(400, 170 + y_offset);
-        glVertex2i(400, 225 + y_offset);
-        glVertex2i(150, 225 + y_offset);
+        glVertex2i(150, 270);
+        glVertex2i(400, 270);
+        glVertex2i(400, 325);
+        glVertex2i(150, 325);
         glEnd();
 
         // Cabin
         glBegin(GL_QUADS);
         glColor3f(0.8f, 0.0f, 0.0f); // Red
-        glVertex2i(190, 225 + y_offset);
-        glVertex2i(360, 225 + y_offset);
-        glVertex2i(310, 260 + y_offset);
-        glVertex2i(240, 260 + y_offset);
+        glVertex2i(190, 325);
+        glVertex2i(360, 325);
+        glVertex2i(310, 360);
+        glVertex2i(240, 360);
         glEnd();
 
         // Headlight
         glBegin(GL_QUADS);
         glColor3f(1.0f, 1.0f, 0.0f); // Yellow
-        glVertex2i(145, 210 + y_offset);
-        glVertex2i(150, 210 + y_offset);
-        glVertex2i(150, 225 + y_offset);
-        glVertex2i(145, 225 + y_offset);
+        glVertex2i(145, 310);
+        glVertex2i(150, 310);
+        glVertex2i(150, 325);
+        glVertex2i(145, 325);
         glEnd();
 
         // Window
         glBegin(GL_QUADS);
         glColor3f(0.0f, 0.0f, 0.0f); // Black
-        glVertex2i(197, 225 + y_offset);
-        glVertex2i(347, 225 + y_offset);
-        glVertex2i(310, 255 + y_offset);
-        glVertex2i(240, 255 + y_offset);
+        glVertex2i(197, 325);
+        glVertex2i(347, 325);
+        glVertex2i(310, 355);
+        glVertex2i(240, 355);
         glEnd();
 
         // Window Divider
         glBegin(GL_QUADS);
         glColor3f(0.8f, 0.0f, 0.0f); // Red
-        glVertex2i(270, 225 + y_offset);
-        glVertex2i(275, 225 + y_offset);
-        glVertex2i(278, 255 + y_offset);
-        glVertex2i(273, 255 + y_offset);
+        glVertex2i(270, 325);
+        glVertex2i(275, 325);
+        glVertex2i(278, 355);
+        glVertex2i(273, 355);
         glEnd();
 
         // Wheels
         glColor3f(0.0f, 0.0f, 0.0f); // Black
-        drawCircle(200, 170 + y_offset, 20);
-        drawCircle(350, 170 + y_offset, 20);
+        drawCircle(200, 270, 20);
+        drawCircle(350, 270, 20);
         glColor3f(0.698f, 0.745f, 0.709f); // Grey
-        drawCircle(200, 170 + y_offset, 10);
-        drawCircle(350, 170 + y_offset, 10);
+        drawCircle(200, 270, 10);
+        drawCircle(350, 270, 10);
     }
-    void car2()
+    //blue car
+    void car2()//object 10
     {
         glBegin(GL_QUADS);
         glColor3f(0.0f, 0.0f, 1.0f);
@@ -653,11 +638,11 @@ namespace Mahtab {
         drawCircle(500, 170, 10);
         drawCircle(650, 170, 10);
     }
-    void bus1()
+    void bus1() //object 11
     {
         glBegin(GL_POLYGON);
-        glColor3f(0.8f, 0.3f, 0.0f);  // Orange color to distinguish from bus2
-        glVertex2i(200, 230);  // Positioned higher than bus2
+        glColor3f(0.8f, 0.3f, 0.0f);  // Orange color
+        glVertex2i(200, 230); 
         glVertex2i(200, 290);
         glVertex2i(230, 360);
         glVertex2i(550, 360);
@@ -701,7 +686,7 @@ namespace Mahtab {
         drawCircle(315, 230, 15);
         drawCircle(490, 230, 15);
     }
-    void bus2()
+    void bus2() //object 12
     {
         glBegin(GL_POLYGON);
         glColor3f(0.0f, 0.0f, 1.0f);
@@ -749,7 +734,7 @@ namespace Mahtab {
         drawCircle(315, 165, 15);
         drawCircle(490, 165, 15);
     }
-    void plane()
+    void plane() //object 12
     {
         glColor3f(0.392f, 0.392f, 0.392f);   //Dark Grey
         glBegin(GL_QUADS);
@@ -795,119 +780,7 @@ namespace Mahtab {
         glVertex2f(350, 550 - 20);
         glEnd();
     }
-    void house_day()
-    {
-        glColor3f(0.60f, 0.40f, 0.30f);  //house 1
-        glBegin(GL_QUADS);
-        glVertex2f(10, 400);
-        glVertex2f(140, 400);
-        glVertex2f(140, 580);
-        glVertex2f(10, 580);
-        glEnd();
-        glColor3f(0.2f, 0.2f, 0.2f);
-        glBegin(GL_QUADS);
-        glVertex2f(20, 570);
-        glVertex2f(67, 570);
-        glVertex2f(67, 520);
-        glVertex2f(20, 520);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(130, 570);
-        glVertex2f(78, 570);
-        glVertex2f(78, 520);
-        glVertex2f(130, 520);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(20, 510);
-        glVertex2f(67, 510);
-        glVertex2f(67, 460);
-        glVertex2f(20, 460);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(130, 460);
-        glVertex2f(78, 460);
-        glVertex2f(78, 510);
-        glVertex2f(130, 510);
-        glEnd();
-        //door 1
-        glBegin(GL_QUADS);
-        glVertex2f(60, 400);
-        glVertex2f(85, 400);
-        glVertex2f(85, 450);
-        glVertex2f(60, 450);
-        glEnd();
-
-        glColor3f(0.33f, 0.60f, 0.50f);   //house2
-        glBegin(GL_QUADS);
-        glVertex2f(280, 400);
-        glVertex2f(150, 400);
-        glVertex2f(150, 580);
-        glVertex2f(280, 580);
-        glEnd();
-        //window 2
-        glColor3f(0.2f, 0.2f, 0.2f);
-        glBegin(GL_QUADS);
-        glVertex2f(270, 550);
-        glVertex2f(160, 550);
-        glVertex2f(160, 570);
-        glVertex2f(270, 570);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(270, 540);
-        glVertex2f(160, 540);
-        glVertex2f(160, 480);
-        glVertex2f(270, 480);
-        glEnd();
-        //door 2
-        glBegin(GL_QUADS);
-        glVertex2f(195, 400);
-        glVertex2f(235, 400);
-        glVertex2f(235, 470);
-        glVertex2f(195, 470);
-        glEnd();
-
-        glColor3f(0.27f, 0.39f, 0.55f); //house 3
-        glBegin(GL_QUADS);
-        glVertex2f(290, 400);
-        glVertex2f(420, 400);
-        glVertex2f(420, 585);
-        glVertex2f(290, 585);
-        glEnd();
-        //window 3
-        glColor3f(0.2f, 0.2f, 0.2f);
-        glBegin(GL_QUADS);
-        glVertex2f(300, 570);
-        glVertex2f(350, 570);
-        glVertex2f(350, 520);
-        glVertex2f(300, 520);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(410, 570);
-        glVertex2f(358, 570);
-        glVertex2f(358, 520);
-        glVertex2f(410, 520);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(300, 510);
-        glVertex2f(350, 510);
-        glVertex2f(350, 460);
-        glVertex2f(300, 460);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(410, 460);
-        glVertex2f(358, 460);
-        glVertex2f(358, 510);
-        glVertex2f(410, 510);
-        glEnd();
-        //door 3
-        glBegin(GL_QUADS);
-        glVertex2f(370, 400);
-        glVertex2f(335, 400);
-        glVertex2f(335, 450);
-        glVertex2f(370, 450);
-        glEnd();
-    }
-    void house_night()
+    void house() //object 13
     {
         // House 1
         glColor3f(0.60f, 0.40f, 0.30f);
@@ -918,35 +791,66 @@ namespace Mahtab {
         glVertex2f(10, 580);
         glEnd();
 
-        // House 1, second floor windows (cool white)
-        glColor3f(0.9f, 0.9f, 1.0f);
-        glBegin(GL_QUADS);
-        glVertex2f(20, 570);
-        glVertex2f(67, 570);
-        glVertex2f(67, 520);
-        glVertex2f(20, 520);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(130, 570);
-        glVertex2f(78, 570);
-        glVertex2f(78, 520);
-        glVertex2f(130, 520);
-        glEnd();
+        if (day) {
+            // Day windows - Black no lights on during day
+            glColor3f(0.2f, 0.2f, 0.2f);
+            glBegin(GL_QUADS);
+            glVertex2f(20, 570);
+            glVertex2f(67, 570);
+            glVertex2f(67, 520);
+            glVertex2f(20, 520);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(130, 570);
+            glVertex2f(78, 570);
+            glVertex2f(78, 520);
+            glVertex2f(130, 520);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(20, 510);
+            glVertex2f(67, 510);
+            glVertex2f(67, 460);
+            glVertex2f(20, 460);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(130, 460);
+            glVertex2f(78, 460);
+            glVertex2f(78, 510);
+            glVertex2f(130, 510);
+            glEnd();
+        } 
+        else {
+            // Night windows - Lights on
+            // House 1, second floor windows white
+            glColor3f(0.9f, 0.9f, 1.0f);
+            glBegin(GL_QUADS);
+            glVertex2f(20, 570);
+            glVertex2f(67, 570);
+            glVertex2f(67, 520);
+            glVertex2f(20, 520);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(130, 570);
+            glVertex2f(78, 570);
+            glVertex2f(78, 520);
+            glVertex2f(130, 520);
+            glEnd();
 
-        // House 1, first floor windows (pale yellow)
-        glColor3f(1.0f, 1.0f, 0.8f);
-        glBegin(GL_QUADS);
-        glVertex2f(20, 510);
-        glVertex2f(67, 510);
-        glVertex2f(67, 460);
-        glVertex2f(20, 460);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(130, 460);
-        glVertex2f(78, 460);
-        glVertex2f(78, 510);
-        glVertex2f(130, 510);
-        glEnd();
+            // House 1, first floor windows pale yellow
+            glColor3f(1.0f, 1.0f, 0.8f);
+            glBegin(GL_QUADS);
+            glVertex2f(20, 510);
+            glVertex2f(67, 510);
+            glVertex2f(67, 460);
+            glVertex2f(20, 460);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(130, 460);
+            glVertex2f(78, 460);
+            glVertex2f(78, 510);
+            glVertex2f(130, 510);
+            glEnd();
+        }
 
         // Door 1
         glBegin(GL_QUADS);
@@ -966,20 +870,37 @@ namespace Mahtab {
         glVertex2f(280, 580);
         glEnd();
 
-        // House 2, windows (warm white)
-        glColor3f(1.0f, 0.87f, 0.73f);
-        glBegin(GL_QUADS);
-        glVertex2f(270, 550);
-        glVertex2f(160, 550);
-        glVertex2f(160, 570);
-        glVertex2f(270, 570);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(270, 540);
-        glVertex2f(160, 540);
-        glVertex2f(160, 480);
-        glVertex2f(270, 480);
-        glEnd();
+        if (day) {
+            // Day windows
+            glColor3f(0.2f, 0.2f, 0.2f);
+            glBegin(GL_QUADS);
+            glVertex2f(270, 550);
+            glVertex2f(160, 550);
+            glVertex2f(160, 570);
+            glVertex2f(270, 570);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(270, 540);
+            glVertex2f(160, 540);
+            glVertex2f(160, 480);
+            glVertex2f(270, 480);
+            glEnd();
+        } else {
+            // Night windows white
+            glColor3f(1.0f, 0.87f, 0.73f);
+            glBegin(GL_QUADS);
+            glVertex2f(270, 550);
+            glVertex2f(160, 550);
+            glVertex2f(160, 570);
+            glVertex2f(270, 570);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(270, 540);
+            glVertex2f(160, 540);
+            glVertex2f(160, 480);
+            glVertex2f(270, 480);
+            glEnd();
+        }
 
         // Door 2
         glBegin(GL_QUADS);
@@ -999,35 +920,65 @@ namespace Mahtab {
         glVertex2f(290, 585);
         glEnd();
 
-        // House 3, second floor windows (cool white)
-        glColor3f(0.9f, 0.9f, 1.0f);
-        glBegin(GL_QUADS);
-        glVertex2f(300, 570);
-        glVertex2f(350, 570);
-        glVertex2f(350, 520);
-        glVertex2f(300, 520);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(410, 570);
-        glVertex2f(358, 570);
-        glVertex2f(358, 520);
-        glVertex2f(410, 520);
-        glEnd();
+        if (day) {
+            // Day windows
+            glColor3f(0.2f, 0.2f, 0.2f);
+            glBegin(GL_QUADS);
+            glVertex2f(300, 570);
+            glVertex2f(350, 570);
+            glVertex2f(350, 520);
+            glVertex2f(300, 520);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(410, 570);
+            glVertex2f(358, 570);
+            glVertex2f(358, 520);
+            glVertex2f(410, 520);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(300, 510);
+            glVertex2f(350, 510);
+            glVertex2f(350, 460);
+            glVertex2f(300, 460);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(410, 460);
+            glVertex2f(358, 460);
+            glVertex2f(358, 510);
+            glVertex2f(410, 510);
+            glEnd();
+        } else {
+            // Night windows
+            // House 3, second floor windows white
+            glColor3f(0.9f, 0.9f, 1.0f);
+            glBegin(GL_QUADS);
+            glVertex2f(300, 570);
+            glVertex2f(350, 570);
+            glVertex2f(350, 520);
+            glVertex2f(300, 520);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(410, 570);
+            glVertex2f(358, 570);
+            glVertex2f(358, 520);
+            glVertex2f(410, 520);
+            glEnd();
 
-        // House 3, first floor windows (pinkish white)
-        glColor3f(1.0f, 0.9f, 0.8f);
-        glBegin(GL_QUADS);
-        glVertex2f(300, 510);
-        glVertex2f(350, 510);
-        glVertex2f(350, 460);
-        glVertex2f(300, 460);
-        glEnd();
-        glBegin(GL_QUADS);
-        glVertex2f(410, 460);
-        glVertex2f(358, 460);
-        glVertex2f(358, 510);
-        glVertex2f(410, 510);
-        glEnd();
+            // House 3, first floor windows pink white
+            glColor3f(1.0f, 0.9f, 0.8f);
+            glBegin(GL_QUADS);
+            glVertex2f(300, 510);
+            glVertex2f(350, 510);
+            glVertex2f(350, 460);
+            glVertex2f(300, 460);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(410, 460);
+            glVertex2f(358, 460);
+            glVertex2f(358, 510);
+            glVertex2f(410, 510);
+            glEnd();
+        }
 
         // Door 3
         glBegin(GL_QUADS);
@@ -1038,7 +989,7 @@ namespace Mahtab {
         glVertex2f(370, 450);
         glEnd();
     }
-    void bird()
+    void bird() //object 14
     {
         glColor3f(0.392f, 0.392f, 0.392f);
         glBegin(GL_TRIANGLES);  //1
@@ -1072,7 +1023,7 @@ namespace Mahtab {
         glVertex2d(458,575);
         glEnd();
     }
-    void bench()
+    void bench() //object 15
     {
         // Seat
         glColor3f(0.4f, 0.2f, 0.0f);  // Brown wood color
@@ -1092,7 +1043,7 @@ namespace Mahtab {
         glEnd();
 
         // Legs
-        glColor3f(0.3f, 0.3f, 0.3f);  // Dark gray for metal legs
+        glColor3f(0.3f, 0.3f, 0.3f);  // Dark gray for legs
         // Left leg
         glBegin(GL_QUADS);
         glVertex2i(675, 347);
@@ -1109,7 +1060,7 @@ namespace Mahtab {
         glVertex2i(745, 360);
         glEnd();
 
-        // Simple decorative lines on seat and backrest
+        //lines on seat and back
         glColor3f(0.3f, 0.15f, 0.0f);  // Darker brown for lines
         glBegin(GL_LINES);
         // Seat lines
@@ -1120,30 +1071,32 @@ namespace Mahtab {
         glVertex2i(765, 385);
         glEnd();
     }
-    void init() {
+    void initRain() 
+    {
         // Initialize rain drops at random positions
         for(int i = 0; i < 100; i++) {
             rainY[i] = rand() % 600;  // Random Y position
             rainX[i] = rand() % 1000; // Random X position
         }
     }
-    void drawRain() {
-        glColor4f(0.7f, 0.7f, 1.0f, 0.5f);  // Light blue-white, semi-transparent
+    void drawRain()  //object 16
+    {
+        glColor4f(0.7f, 0.7f, 1.0f, 0.5f);  // Light blue white
         glLineWidth(1.5f);
 
         for(int i = 0; i < 100; i++) {
         glBegin(GL_LINES);
             glVertex2f(rainX[i], rainY[i]);
-            glVertex2f(rainX[i] - 3, rainY[i] - 10);  // Slanted rain drops
+            glVertex2f(rainX[i] - 3, rainY[i] - 10);  // Rain drops
         glEnd();
 
             // Update rain drop position
-            rainY[i] -= 20.0f;  // Move down
-            rainX[i] -= 2.5f;  // Move slightly left for wind effect
+            rainY[i] -= 5.0f;  // Move down
+            rainX[i] -= 0.5f;  // Move slightly left for wind effect
 
             // Reset rain drop if it goes off screen
             if(rainY[i] < 0) {
-                rainY[i] = rand() % 600 + 600;  // Reset to top
+                rainY[i] = 600;
                 rainX[i] = rand() % 1000;
             }
             if(rainX[i] < 0) {
@@ -1151,45 +1104,49 @@ namespace Mahtab {
             }
         }
     }
-    void updateFlood(int value) {
+    void updateFlood(int value) //AF14
+    {
         if(isRaining) {
             floodLevel += 0.3f;
-            if(floodLevel > 50.0f) floodLevel = 50.0f;
+            if(floodLevel > 50.0f) 
+            floodLevel = 50.0f;
         } else {
             floodLevel -= 0.2f;
             if(floodLevel < 0.0f) floodLevel = 0.0f;
         }
         glutPostRedisplay();
+        
     }
-    void river() {
+    void river() //object 17
+    {
         float currentHeight = 100.0f + floodLevel;  // Base height plus flood level
 
         // Main river body with flood level
         glBegin(GL_QUADS);
-        glColor3f(0.0f, 0.3f, 0.7f);  // Darker blue for flood water
+        glColor3f(0.0f, 0.3f, 0.7f);  // Dark blue for flood water
         glVertex2i(0, 0);
         glVertex2i(1000, 0);
         glVertex2i(1000, currentHeight);
         glVertex2i(0, currentHeight);
         glEnd();
 
-        // Flood water effect (more turbulent)
+        // Flood water effect
         glBegin(GL_LINES);
-        glColor4f(0.2f, 0.4f, 0.8f, 0.7f);  // Slightly different blue for turbulence
+        glColor4f(0.2f, 0.4f, 0.8f, 0.7f);  // Slightly different blue
 
         int offset;
         for(int i = 0; i < 1000; i += 30) {  // More frequent waves during flood
             offset = (i + (int)waterFlow) % 1000;
 
-            // Multiple layers of choppy waves
+            // Multiple layers of waves
             for(float y = 20; y < currentHeight; y += 25) {
                 glVertex2i(offset, y);
-                glVertex2i(offset + 20, y + (isRaining ? 5 : 0));  // Choppier waves when raining
+                glVertex2i(offset + 20, y + (isRaining ? 5 : 0));  // uneven wave when raining
             }
         }
         glEnd();
 
-        // Rain splash effects on water
+        // Raindrop impact effects on water
         if(isRaining) {
             glColor4f(1.0f, 1.0f, 1.0f, 0.3f);
             for(int i = 0; i < 20; i++) {
@@ -1199,10 +1156,11 @@ namespace Mahtab {
             }
         }
     }
-    void boat() {
+    void boat() //object 18
+    {
         glPushMatrix();
-        glTranslatef(boatX, 25.0f, 0.0f);  // Lowered Y position to sit lower in river
-        glScalef(8.0f, 8.0f, 1.0f);  // Maintained the same scale
+        glTranslatef(boatX, 25.0f, 0.0f);  
+        glScalef(8.0f, 8.0f, 1.0f);  // Maintaines same scale
 
         // Upper red part
         glColor3f(1.0f, 0.0f, 0.0f);  // Red
@@ -1285,7 +1243,7 @@ namespace Mahtab {
         glEnd();
     }
 
-        // Hull details (black lines)
+        // Hull details black lines
         glColor3f(0.0f, 0.0f, 0.0f);
         for(float x = 1.5f; x < 20.0f; x += 2.0f) {
             glBegin(GL_LINE_LOOP);
@@ -1311,21 +1269,7 @@ namespace Mahtab {
 
         glPopMatrix();
     }
-    void night_rain_clouds()
-    {
-        if (!isRaining) return;
-
-        glColor3f(0.1f, 0.1f, 0.15f);
-        // Cloud clusters
-        drawCircle(90, 550, 25);  drawCircle(120, 550, 30);  drawCircle(150, 550, 25);
-        drawCircle(515, 570, 20); drawCircle(540, 570, 25);  drawCircle(565, 570, 20);
-        drawCircle(745, 520, 20); drawCircle(770, 520, 25);  drawCircle(795, 520, 20);
-        drawCircle(300, 490, 20); drawCircle(330, 490, 25);  drawCircle(360, 490, 20);
-        drawCircle(905, 480, 20); drawCircle(930, 480, 25);  drawCircle(955, 480, 20);
-        drawCircle(200, 520, 22); drawCircle(400, 540, 28);  drawCircle(600, 510, 24);
-        drawCircle(800, 530, 26);
-    }
-    void display()
+    void display()  //AF01
     {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -1337,15 +1281,16 @@ namespace Mahtab {
                 glVertex2i(0,600); glVertex2i(1000, 600);
                 glVertex2i(1000, 300); glVertex2i(0, 300);
                 glEnd();
-            } else {
-            day_sky();
+            } 
+            else {
+            sky();
             sun();
             }
 
-            lamp_daylight();
+            lamp_light();
             glPushMatrix();
             glTranslatef(cloudX, 0.0f, 0.0f);
-            day_cloud();
+            cloud();
             glPopMatrix();
 
             if(!isRaining) {
@@ -1354,27 +1299,24 @@ namespace Mahtab {
             bird();
             glPopMatrix();
             }
-            house_day();
+            house();
             greenPart_bush();
         } else {
-            night_sky();
+            sky();
             sun();
-            night_rain_clouds();
 
-            if(!isRaining) {
             glPushMatrix();
             glTranslatef(planeX, 0.0f, 0.0f);
             plane();
             glPopMatrix();
-            }
 
-            lamp_nightlight();
+            lamp_light();
             glPushMatrix();
             glTranslatef(cloudX, 0.0f, 0.0f);
-            night_cloud();
+            cloud();
             glPopMatrix();
             greenPart_bush();
-            house_night();
+            house();
         }
 
         road();
@@ -1416,7 +1358,7 @@ namespace Mahtab {
         }
         glFlush();
     }
-    void updateCloud(int value)
+    void updateCloud(int value) //AF02
     {
         cloudX += 1.5f;
         if (cloudX > 1000)
@@ -1424,8 +1366,9 @@ namespace Mahtab {
             cloudX = -1000.0f;
         }
         glutPostRedisplay();
+        
     }
-    void updatePlane(int value)
+    void updatePlane(int value) //AF03
     {
         planeX += 2.0f;
         if (planeX > 1000)
@@ -1433,8 +1376,9 @@ namespace Mahtab {
             planeX = -500.0f;
         }
         glutPostRedisplay();
+        
     }
-    void updateSun(int value)
+    void updateSun(int value) //AF04
     {
         if (moveSunDown)
         {
@@ -1461,66 +1405,80 @@ namespace Mahtab {
             }
         }
         glutPostRedisplay();
+        
     }
-    void updateBird(int value)
+    void updateBird(int value) //AF05
     {
         if(position > 550.0f)
         {
-            position = -200.0f;  // Reset position to start from off-screen
+            position = -200.0f;  // Reset position to start from offscreen
         }
         position += speed; // Move along both x & y axes
 
         glutPostRedisplay(); // Notify GLUT that the display has changed
+        
     }
-    void updateWater(int value)
+    void updateWater(int value) //AF06
     {
         waterFlow += 1.0f;
         if(waterFlow >= 1000.0f) {
             waterFlow = 0.0f;
         }
         glutPostRedisplay();
+        
     }
-    void updateBoat(int value) {
+    void updateBoat(int value) //AF07
+    {
         boatX += boatSpeed;
         if(boatX > 1000) {
             boatX = -200.0f;
             boatSpeed = 1.5f; // Reset speed when boat restarts
         }
         glutPostRedisplay();
+        
     }
-    void updateCar1(int value) {
+    void updateCar1(int value) //AF08
+    {
         carX -= 3.0f;  // Moving left to right
         if (carX < -700) {
             carX = 1000.0f;  // Reset to left side
         }
         glutPostRedisplay();
+        
     }
-    void updateCar2(int value) {
-        carX2 += 3.5f;  // Same speed as car1
+    void updateCar2(int value) //AF09
+    {
+        carX2 += 3.5f;  // Moving right to left
         if (carX2 > 1000) {
-            carX2 = -800.0f;  // Reset to left side with spacing
+            carX2 = -800.0f;  // Reset to left side
         }
         glutPostRedisplay();
+        
     }
-    void updateBus1(int value) {
+    void updateBus1(int value) //AF10
+    {
         busX -= 3.0f;
         if (busX < -1000.0f) {
             busX = 1000.0f;
         }
         glutPostRedisplay();
+        
     }
-    void updateBus2(int value) {
+    void updateBus2(int value) //AF11
+    {
         busX2 -= 3.8f;
         if (busX2 < -1000.0f) {
             busX2 = 1000.0f;
         }
         glutPostRedisplay();
+        
     }
-    void mouse(int button, int state, int x, int y) {
+    void mouse(int button, int state, int x, int y) //AF12
+    {
         if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
             // Convert window y to OpenGL y
             int oglY = 600 - y;
-            // Boat's bounding box in world coordinates
+            // Boat bounding box 
             float boatLeft = boatX;
             float boatRight = boatX + 21.5f * 8.0f; // boat width * scale
             float boatBottom = 25.0f;
@@ -1531,7 +1489,7 @@ namespace Mahtab {
             }
         }
     }
-    void keyboard(unsigned char key, int x, int y)
+    void keyboard(unsigned char key, int x, int y) //AF13
     {
         switch (key)
         {
@@ -1568,17 +1526,13 @@ namespace Mahtab {
             }
             glutPostRedisplay();
             break;
-        case 27:
-            exit(0);
-            break;
         }
     }
-
     void initScene() {
         std::cout << "Mahtab's scene initialized." << std::endl;
 
-        cout<< "--- Controls ---" <<endl;
-        cout<<"For rain press : r"<<endl;
+        std::cout<< "--- Controls ---" <<std::endl;
+        std::cout<<"For rain press : r"<<std::endl;
     }
     void cleanupScene() {
         std::cout << "Mahhtab's scene cleaned up." << std::endl;
@@ -1596,4 +1550,31 @@ namespace Mahtab {
         updateSun(0);
         updateBird(0);
     }
+    // int main(int argc, char** argv)
+    // {
+    //     srand(time(0));
+    //     glutInit(&argc, argv);
+    //     glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
+    //     glutInitWindowSize(1000, 600);
+    //     glutInitWindowPosition(100, 100);
+    //     glutCreateWindow("City Society Scene");
+    //     init();
+    //     glutDisplayFunc(display);
+    //     glutKeyboardFunc(keyboard);
+    //     glutMouseFunc(mouse);
+    //     glutTimerFunc(0, updateCloud, 0);
+    //     glutTimerFunc(0, updateCar1, 0);
+    //     glutTimerFunc(0, updateCar2, 0);
+    //     glutTimerFunc(0, updateBus1, 0);
+    //     glutTimerFunc(0, updateBus2, 0);
+    //     glutTimerFunc(0, updatePlane,0);
+    //     glutTimerFunc(0, updateWater, 0);
+    //     glutTimerFunc(0, updateBoat, 0);
+    //     glutTimerFunc(0, updateFlood, 0);
+    //     glutTimerFunc(0, updateSun, 0);
+    //     glutTimerFunc(0, updateBird, 0);
+    //     initRain();
+    //     glutMainLoop();
+    //     return 0;
+    // }
 }
