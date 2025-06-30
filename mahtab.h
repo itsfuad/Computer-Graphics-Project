@@ -1550,31 +1550,4 @@ namespace Mahtab {
         updateSun(0);
         updateBird(0);
     }
-    // int main(int argc, char** argv)
-    // {
-    //     srand(time(0));
-    //     glutInit(&argc, argv);
-    //     glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
-    //     glutInitWindowSize(1000, 600);
-    //     glutInitWindowPosition(100, 100);
-    //     glutCreateWindow("City Society Scene");
-    //     init();
-    //     glutDisplayFunc(display);
-    //     glutKeyboardFunc(keyboard);
-    //     glutMouseFunc(mouse);
-    //     glutTimerFunc(0, updateCloud, 0);
-    //     glutTimerFunc(0, updateCar1, 0);
-    //     glutTimerFunc(0, updateCar2, 0);
-    //     glutTimerFunc(0, updateBus1, 0);
-    //     glutTimerFunc(0, updateBus2, 0);
-    //     glutTimerFunc(0, updatePlane,0);
-    //     glutTimerFunc(0, updateWater, 0);
-    //     glutTimerFunc(0, updateBoat, 0);
-    //     glutTimerFunc(0, updateFlood, 0);
-    //     glutTimerFunc(0, updateSun, 0);
-    //     glutTimerFunc(0, updateBird, 0);
-    //     initRain();
-    //     glutMainLoop();
-    //     return 0;
-    // }
 }
