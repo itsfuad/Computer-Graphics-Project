@@ -2,6 +2,9 @@
 
 This is a Computer Graphics course project implemented using OpenGL and GLUT. The project features multiple interactive 3D scenes with various animations and effects.
 
+
+![cover](https://github.com/user-attachments/assets/08adb760-ec46-497b-8728-37a539146e1b)
+
 ## Requirements
 
 ### Libraries
